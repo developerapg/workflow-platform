@@ -1,0 +1,284 @@
+{
+  "_comment": "Proyecto demo — escenario solicitud de vacaciones (Vision §9 criterio de éxito)",
+  "root_project": {
+    "id_object": "proj-001",
+    "object_name": "vacation_management",
+    "object_type": "root_project",
+    "parent": null,
+    "content": {
+      "description": "Gestión de solicitudes de vacaciones de colaboradores",
+      "version": 1,
+      "mode": "greenfield",
+      "tags": ["rrhh", "demo"]
+    },
+    "created_at": "2026-05-01T08:00:00Z",
+    "updated_at": "2026-05-20T10:00:00Z"
+  },
+  "entities": [
+    {
+      "id_object": "ent-employee",
+      "object_name": "employee",
+      "object_type": "entity",
+      "parent": "proj-001",
+      "content": {
+        "description": "Datos del colaborador",
+        "source": "employee",
+        "is_managed": true,
+        "relations": []
+      },
+      "created_at": "2026-05-01T08:05:00Z",
+      "updated_at": "2026-05-01T08:05:00Z"
+    },
+    {
+      "id_object": "ent-vacation-request",
+      "object_name": "vacation_request",
+      "object_type": "entity",
+      "parent": "proj-001",
+      "content": {
+        "description": "Solicitud de vacaciones de un colaborador",
+        "source": "vacation_request",
+        "is_managed": true,
+        "relations": [
+          {
+            "id": "rel-vr-employee",
+            "name": "employee",
+            "related_entity_id": "ent-employee",
+            "cardinality": "N:1",
+            "fk_attribute_id": "attr-vr-employee-id"
+          }
+        ]
+      },
+      "created_at": "2026-05-01T08:10:00Z",
+      "updated_at": "2026-05-01T08:10:00Z"
+    },
+    {
+      "id_object": "ent-vacation-balance",
+      "object_name": "vacation_balance",
+      "object_type": "entity",
+      "parent": "proj-001",
+      "content": {
+        "description": "Saldo de días de vacaciones por empleado y año",
+        "source": "vacation_balance",
+        "is_managed": true,
+        "relations": [
+          {
+            "id": "rel-vb-employee",
+            "name": "employee",
+            "related_entity_id": "ent-employee",
+            "cardinality": "N:1",
+            "fk_attribute_id": "attr-vb-employee-id"
+          }
+        ]
+      },
+      "created_at": "2026-05-01T08:15:00Z",
+      "updated_at": "2026-05-01T08:15:00Z"
+    }
+  ],
+  "attributes": [
+    { "id_attribute": "attr-emp-id", "entity_id": "ent-employee", "name": "id", "description": "Identificador único", "data_type": "uuid", "required": true, "is_unique": true, "is_business_key": false, "default_value": null, "ordinal": 0, "metadata": { "source": "id", "is_primary_key": true, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+    { "id_attribute": "attr-emp-full-name", "entity_id": "ent-employee", "name": "full_name", "description": "Nombre completo", "data_type": "string", "required": true, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 1, "metadata": { "source": "full_name", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": { "max_length": 200 } } },
+    { "id_attribute": "attr-emp-email", "entity_id": "ent-employee", "name": "email", "description": "Correo electrónico corporativo", "data_type": "string", "required": true, "is_unique": true, "is_business_key": true, "default_value": null, "ordinal": 2, "metadata": { "source": "email", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": { "max_length": 255 } } },
+    { "id_attribute": "attr-emp-department", "entity_id": "ent-employee", "name": "department", "description": "Área o departamento", "data_type": "string", "required": true, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 3, "metadata": { "source": "department", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": { "max_length": 100 } } },
+
+    { "id_attribute": "attr-vr-id", "entity_id": "ent-vacation-request", "name": "id", "description": "Identificador único", "data_type": "uuid", "required": true, "is_unique": true, "is_business_key": false, "default_value": null, "ordinal": 0, "metadata": { "source": "id", "is_primary_key": true, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+    { "id_attribute": "attr-vr-employee-id", "entity_id": "ent-vacation-request", "name": "employee_id", "description": "FK al empleado solicitante", "data_type": "uuid", "required": true, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 1, "metadata": { "source": "employee_id", "is_primary_key": false, "is_foreign_key": true, "foreign_key_ref": "ent-employee", "constraints": {} } },
+    { "id_attribute": "attr-vr-start-date", "entity_id": "ent-vacation-request", "name": "start_date", "description": "Fecha de inicio de vacaciones", "data_type": "date", "required": true, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 2, "metadata": { "source": "start_date", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+    { "id_attribute": "attr-vr-end-date", "entity_id": "ent-vacation-request", "name": "end_date", "description": "Fecha de fin de vacaciones", "data_type": "date", "required": true, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 3, "metadata": { "source": "end_date", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+    { "id_attribute": "attr-vr-reason", "entity_id": "ent-vacation-request", "name": "reason", "description": "Motivo de la solicitud", "data_type": "string", "required": false, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 4, "metadata": { "source": "reason", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": { "max_length": 500 } } },
+    { "id_attribute": "attr-vr-approved-manager", "entity_id": "ent-vacation-request", "name": "approved_by_manager", "description": "Aprobación del jefe directo", "data_type": "boolean", "required": false, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 5, "metadata": { "source": "approved_by_manager", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+    { "id_attribute": "attr-vr-approved-hr", "entity_id": "ent-vacation-request", "name": "approved_by_hr", "description": "Aprobación de RRHH", "data_type": "boolean", "required": false, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 6, "metadata": { "source": "approved_by_hr", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+
+    { "id_attribute": "attr-vb-id", "entity_id": "ent-vacation-balance", "name": "id", "description": "Identificador único", "data_type": "uuid", "required": true, "is_unique": true, "is_business_key": false, "default_value": null, "ordinal": 0, "metadata": { "source": "id", "is_primary_key": true, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+    { "id_attribute": "attr-vb-employee-id", "entity_id": "ent-vacation-balance", "name": "employee_id", "description": "FK al empleado", "data_type": "uuid", "required": true, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 1, "metadata": { "source": "employee_id", "is_primary_key": false, "is_foreign_key": true, "foreign_key_ref": "ent-employee", "constraints": {} } },
+    { "id_attribute": "attr-vb-year", "entity_id": "ent-vacation-balance", "name": "year", "description": "Año del saldo", "data_type": "integer", "required": true, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 2, "metadata": { "source": "year", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+    { "id_attribute": "attr-vb-days-total", "entity_id": "ent-vacation-balance", "name": "days_total", "description": "Días totales del período", "data_type": "integer", "required": true, "is_unique": false, "is_business_key": false, "default_value": null, "ordinal": 3, "metadata": { "source": "days_total", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } },
+    { "id_attribute": "attr-vb-days-used", "entity_id": "ent-vacation-balance", "name": "days_used", "description": "Días ya utilizados", "data_type": "integer", "required": true, "is_unique": false, "is_business_key": false, "default_value": 0, "ordinal": 4, "metadata": { "source": "days_used", "is_primary_key": false, "is_foreign_key": false, "foreign_key_ref": null, "constraints": {} } }
+  ],
+  "forms": [
+    {
+      "id_object": "form-solicitud",
+      "object_name": "solicitud_form",
+      "object_type": "form_definition",
+      "parent": "ent-vacation-request",
+      "content": {
+        "description": "Formulario de solicitud de vacaciones",
+        "entity_ref": "ent-vacation-request",
+        "form_type": "data_entry",
+        "fields": [
+          { "id": "fld-sol-employee", "attribute_ref": "attr-vr-employee-id", "label": "Empleado solicitante", "placeholder": "Selecciona empleado", "help_text": "", "required": true, "read_only": false, "hidden": false, "component": "lookup", "validations": [], "x_path": null, "default_value": null },
+          { "id": "fld-sol-name", "attribute_ref": "attr-emp-full-name", "label": "Nombre del empleado", "placeholder": "", "help_text": "Se llena automáticamente al seleccionar el empleado", "required": false, "read_only": true, "hidden": false, "component": "text_input", "validations": [], "x_path": "employee.full_name", "default_value": null },
+          { "id": "fld-sol-start", "attribute_ref": "attr-vr-start-date", "label": "Fecha de inicio", "placeholder": "dd/mm/aaaa", "help_text": "", "required": true, "read_only": false, "hidden": false, "component": "date_picker", "validations": [], "x_path": null, "default_value": null },
+          { "id": "fld-sol-end", "attribute_ref": "attr-vr-end-date", "label": "Fecha de retorno", "placeholder": "dd/mm/aaaa", "help_text": "Fecha en que el empleado regresa al trabajo", "required": true, "read_only": false, "hidden": false, "component": "date_picker", "validations": [], "x_path": null, "default_value": null },
+          { "id": "fld-sol-reason", "attribute_ref": "attr-vr-reason", "label": "Motivo (opcional)", "placeholder": "Describe brevemente el motivo...", "help_text": "", "required": false, "read_only": false, "hidden": false, "component": "textarea", "validations": [{ "type": "max_length", "value": 500 }], "x_path": null, "default_value": null }
+        ]
+      },
+      "created_at": "2026-05-01T09:00:00Z",
+      "updated_at": "2026-05-01T09:00:00Z"
+    },
+    {
+      "id_object": "form-aprobacion-manager",
+      "object_name": "aprobacion_manager_form",
+      "object_type": "form_definition",
+      "parent": "ent-vacation-request",
+      "content": {
+        "description": "Formulario de aprobación del jefe directo",
+        "entity_ref": "ent-vacation-request",
+        "form_type": "approval",
+        "fields": [
+          { "id": "fld-mgr-name", "attribute_ref": "attr-emp-full-name", "label": "Empleado", "placeholder": "", "help_text": "", "required": false, "read_only": true, "hidden": false, "component": "text_input", "validations": [], "x_path": "employee.full_name", "default_value": null },
+          { "id": "fld-mgr-start", "attribute_ref": "attr-vr-start-date", "label": "Fecha de inicio", "placeholder": "", "help_text": "", "required": false, "read_only": true, "hidden": false, "component": "date_picker", "validations": [], "x_path": null, "default_value": null },
+          { "id": "fld-mgr-end", "attribute_ref": "attr-vr-end-date", "label": "Fecha de retorno", "placeholder": "", "help_text": "", "required": false, "read_only": true, "hidden": false, "component": "date_picker", "validations": [], "x_path": null, "default_value": null },
+          { "id": "fld-mgr-approved", "attribute_ref": "attr-vr-approved-manager", "label": "¿Aprueba la solicitud?", "placeholder": "", "help_text": "", "required": true, "read_only": false, "hidden": false, "component": "checkbox", "validations": [], "x_path": null, "default_value": null }
+        ]
+      },
+      "created_at": "2026-05-01T09:10:00Z",
+      "updated_at": "2026-05-01T09:10:00Z"
+    },
+    {
+      "id_object": "form-aprobacion-hr",
+      "object_name": "aprobacion_hr_form",
+      "object_type": "form_definition",
+      "parent": "ent-vacation-request",
+      "content": {
+        "description": "Formulario de aprobación de RRHH",
+        "entity_ref": "ent-vacation-request",
+        "form_type": "approval",
+        "fields": [
+          { "id": "fld-hr-name", "attribute_ref": "attr-emp-full-name", "label": "Empleado", "placeholder": "", "help_text": "", "required": false, "read_only": true, "hidden": false, "component": "text_input", "validations": [], "x_path": "employee.full_name", "default_value": null },
+          { "id": "fld-hr-dept", "attribute_ref": "attr-emp-department", "label": "Departamento", "placeholder": "", "help_text": "", "required": false, "read_only": true, "hidden": false, "component": "text_input", "validations": [], "x_path": "employee.department", "default_value": null },
+          { "id": "fld-hr-start", "attribute_ref": "attr-vr-start-date", "label": "Fecha de inicio", "placeholder": "", "help_text": "", "required": false, "read_only": true, "hidden": false, "component": "date_picker", "validations": [], "x_path": null, "default_value": null },
+          { "id": "fld-hr-end", "attribute_ref": "attr-vr-end-date", "label": "Fecha de retorno", "placeholder": "", "help_text": "", "required": false, "read_only": true, "hidden": false, "component": "date_picker", "validations": [], "x_path": null, "default_value": null },
+          { "id": "fld-hr-approved", "attribute_ref": "attr-vr-approved-hr", "label": "¿RRHH aprueba la solicitud?", "placeholder": "", "help_text": "Verificar saldo de días disponibles antes de aprobar", "required": true, "read_only": false, "hidden": false, "component": "checkbox", "validations": [], "x_path": null, "default_value": null }
+        ]
+      },
+      "created_at": "2026-05-01T09:20:00Z",
+      "updated_at": "2026-05-01T09:20:00Z"
+    }
+  ],
+  "processes": [
+    {
+      "id_object": "proc-vacation-approval",
+      "object_name": "vacation_approval",
+      "object_type": "process_definition",
+      "parent": "proj-001",
+      "content": {
+        "description": "Proceso de aprobación de solicitudes de vacaciones",
+        "version": 1,
+        "status": "configured",
+        "context_variables": [
+          { "id": "var-employee-id", "name": "employee_id", "label": "ID Empleado", "data_type": "uuid", "entity_ref": null, "initial_value": null, "scope": "process" },
+          { "id": "var-start-date", "name": "start_date", "label": "Fecha inicio", "data_type": "date", "entity_ref": null, "initial_value": null, "scope": "process" },
+          { "id": "var-end-date", "name": "end_date", "label": "Fecha fin", "data_type": "date", "entity_ref": null, "initial_value": null, "scope": "process" },
+          { "id": "var-approved-manager", "name": "approved_by_manager", "label": "Aprobado por jefe", "data_type": "boolean", "entity_ref": null, "initial_value": null, "scope": "process" },
+          { "id": "var-approved-hr", "name": "approved_by_hr", "label": "Aprobado por RRHH", "data_type": "boolean", "entity_ref": null, "initial_value": null, "scope": "process" }
+        ],
+        "transitions": [
+          { "id": "t1", "from_node_id": "node-start", "to_node_id": "node-solicitud", "condition": null, "label": "" },
+          { "id": "t2", "from_node_id": "node-solicitud", "to_node_id": "node-aprobacion-manager", "condition": null, "label": "" },
+          { "id": "t3", "from_node_id": "node-aprobacion-manager", "to_node_id": "node-aprobacion-hr", "condition": null, "label": "" },
+          { "id": "t4", "from_node_id": "node-aprobacion-hr", "to_node_id": "node-end", "condition": null, "label": "" }
+        ],
+        "metadata_canvas": { "zoom": 1.0, "pan_x": 0, "pan_y": 0 }
+      },
+      "created_at": "2026-05-01T10:00:00Z",
+      "updated_at": "2026-05-20T10:00:00Z"
+    }
+  ],
+  "nodes": [
+    { "id_node": "node-start", "process_id": "proc-vacation-approval", "node_type": "start", "name": "inicio", "description": "", "position_x": 80, "position_y": 200, "config": { "_type": "start" } },
+    { "id_node": "node-solicitud", "process_id": "proc-vacation-approval", "node_type": "human_task", "name": "captura_solicitud", "description": "El empleado registra su solicitud de vacaciones", "position_x": 280, "position_y": 200, "config": { "_type": "human_task", "form_ref": "form-solicitud", "assignment": { "type": "role", "value": "employee" }, "due_in": null } },
+    { "id_node": "node-aprobacion-manager", "process_id": "proc-vacation-approval", "node_type": "human_task", "name": "aprobacion_jefe", "description": "El jefe directo revisa y aprueba o rechaza", "position_x": 520, "position_y": 200, "config": { "_type": "human_task", "form_ref": "form-aprobacion-manager", "assignment": { "type": "role", "value": "manager" }, "due_in": "2d" } },
+    { "id_node": "node-aprobacion-hr", "process_id": "proc-vacation-approval", "node_type": "human_task", "name": "aprobacion_rrhh", "description": "RRHH verifica saldo y aprueba definitivamente", "position_x": 760, "position_y": 200, "config": { "_type": "human_task", "form_ref": "form-aprobacion-hr", "assignment": { "type": "role", "value": "hr" }, "due_in": "1d" } },
+    { "id_node": "node-end", "process_id": "proc-vacation-approval", "node_type": "end", "name": "fin", "description": "", "position_x": 1000, "position_y": 200, "config": { "_type": "end", "result_label": "Vacaciones aprobadas" } }
+  ],
+  "instances": [
+    {
+      "id_process_instance": "inst-001",
+      "process_definition_id": "proc-vacation-approval",
+      "process_definition_name": "vacation_approval",
+      "process_version": 1,
+      "status": "running",
+      "started_at": "2026-05-20T08:00:00Z",
+      "completed_at": null,
+      "error_message": null,
+      "current_node_instance": {
+        "id_node_instance": "ni-002",
+        "node_id": "node-aprobacion-manager",
+        "node_name": "aprobacion_jefe",
+        "node_type": "human_task",
+        "entered_at": "2026-05-20T08:05:00Z",
+        "sequence_number": 2
+      },
+      "history": [
+        { "id_node_instance": "ni-001a", "process_instance_id": "inst-001", "node_id": "node-start", "node_name": "inicio", "node_type": "start", "status": "completed", "entered_at": "2026-05-20T08:00:00Z", "completed_at": "2026-05-20T08:00:10Z", "sequence_number": 1, "error_message": null },
+        { "id_node_instance": "ni-001b", "process_instance_id": "inst-001", "node_id": "node-solicitud", "node_name": "captura_solicitud", "node_type": "human_task", "status": "completed", "entered_at": "2026-05-20T08:00:10Z", "completed_at": "2026-05-20T08:05:00Z", "sequence_number": 2, "error_message": null },
+        { "id_node_instance": "ni-002", "process_instance_id": "inst-001", "node_id": "node-aprobacion-manager", "node_name": "aprobacion_jefe", "node_type": "human_task", "status": "active", "entered_at": "2026-05-20T08:05:00Z", "completed_at": null, "sequence_number": 3, "error_message": null }
+      ],
+      "context": [
+        { "id": "cv-001", "process_instance_id": "inst-001", "name": "employee_id", "value": "emp-demo-01", "data_type": "uuid", "set_at": "2026-05-20T08:05:00Z" },
+        { "id": "cv-002", "process_instance_id": "inst-001", "name": "start_date", "value": "2026-06-15", "data_type": "date", "set_at": "2026-05-20T08:05:00Z" },
+        { "id": "cv-003", "process_instance_id": "inst-001", "name": "end_date", "value": "2026-06-22", "data_type": "date", "set_at": "2026-05-20T08:05:00Z" }
+      ],
+      "active_tasks": [
+        {
+          "id_task": "task-mgr-001",
+          "title": "Aprobar solicitud de vacaciones",
+          "status": "pending",
+          "form_definition_id": "form-aprobacion-manager",
+          "form_definition_name": "aprobacion_manager_form",
+          "process_instance_id": "inst-001",
+          "process_definition_name": "vacation_approval",
+          "node_instance_id": "ni-002",
+          "created_at": "2026-05-20T08:05:00Z",
+          "claimed_at": null,
+          "completed_at": null,
+          "assigned_to": null,
+          "assigned_role": "manager"
+        }
+      ]
+    },
+    {
+      "id_process_instance": "inst-002",
+      "process_definition_id": "proc-vacation-approval",
+      "process_definition_name": "vacation_approval",
+      "process_version": 1,
+      "status": "completed",
+      "started_at": "2026-05-15T09:00:00Z",
+      "completed_at": "2026-05-16T14:30:00Z",
+      "error_message": null,
+      "current_node_instance": null,
+      "history": [
+        { "id_node_instance": "ni-010", "process_instance_id": "inst-002", "node_id": "node-start", "node_name": "inicio", "node_type": "start", "status": "completed", "entered_at": "2026-05-15T09:00:00Z", "completed_at": "2026-05-15T09:00:05Z", "sequence_number": 1, "error_message": null },
+        { "id_node_instance": "ni-011", "process_instance_id": "inst-002", "node_id": "node-solicitud", "node_name": "captura_solicitud", "node_type": "human_task", "status": "completed", "entered_at": "2026-05-15T09:00:05Z", "completed_at": "2026-05-15T09:10:00Z", "sequence_number": 2, "error_message": null },
+        { "id_node_instance": "ni-012", "process_instance_id": "inst-002", "node_id": "node-aprobacion-manager", "node_name": "aprobacion_jefe", "node_type": "human_task", "status": "completed", "entered_at": "2026-05-15T09:10:00Z", "completed_at": "2026-05-15T14:00:00Z", "sequence_number": 3, "error_message": null },
+        { "id_node_instance": "ni-013", "process_instance_id": "inst-002", "node_id": "node-aprobacion-hr", "node_name": "aprobacion_rrhh", "node_type": "human_task", "status": "completed", "entered_at": "2026-05-15T14:00:00Z", "completed_at": "2026-05-16T14:30:00Z", "sequence_number": 4, "error_message": null },
+        { "id_node_instance": "ni-014", "process_instance_id": "inst-002", "node_id": "node-end", "node_name": "fin", "node_type": "end", "status": "completed", "entered_at": "2026-05-16T14:30:00Z", "completed_at": "2026-05-16T14:30:05Z", "sequence_number": 5, "error_message": null }
+      ],
+      "context": [
+        { "id": "cv-010", "process_instance_id": "inst-002", "name": "employee_id", "value": "emp-demo-02", "data_type": "uuid", "set_at": "2026-05-15T09:10:00Z" },
+        { "id": "cv-011", "process_instance_id": "inst-002", "name": "start_date", "value": "2026-06-01", "data_type": "date", "set_at": "2026-05-15T09:10:00Z" },
+        { "id": "cv-012", "process_instance_id": "inst-002", "name": "end_date", "value": "2026-06-10", "data_type": "date", "set_at": "2026-05-15T09:10:00Z" },
+        { "id": "cv-013", "process_instance_id": "inst-002", "name": "approved_by_manager", "value": true, "data_type": "boolean", "set_at": "2026-05-15T14:00:00Z" },
+        { "id": "cv-014", "process_instance_id": "inst-002", "name": "approved_by_hr", "value": true, "data_type": "boolean", "set_at": "2026-05-16T14:30:00Z" }
+      ],
+      "active_tasks": []
+    }
+  ],
+  "tasks": [
+    {
+      "id_task": "task-mgr-001",
+      "title": "Aprobar solicitud de vacaciones",
+      "status": "pending",
+      "form_definition_id": "form-aprobacion-manager",
+      "form_definition_name": "aprobacion_manager_form",
+      "process_instance_id": "inst-001",
+      "process_definition_name": "vacation_approval",
+      "node_instance_id": "ni-002",
+      "created_at": "2026-05-20T08:05:00Z",
+      "claimed_at": null,
+      "completed_at": null,
+      "assigned_to": null,
+      "assigned_role": "manager"
+    }
+  ]
+}

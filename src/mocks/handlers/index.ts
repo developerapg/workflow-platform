@@ -1,5 +1,13 @@
-import type { RequestHandler } from 'msw'
+import { readHandlers } from './read'
+import { persistHandlers } from './persist'
+import { instanceHandlers } from './instances'
+import { taskHandlers } from './tasks'
+import { healthHandlers } from './health'
 
-// Handlers will be added per-phase.
-// Each feature module registers its own handlers here.
-export const handlers: RequestHandler[] = []
+export const handlers = [
+  ...healthHandlers,
+  ...readHandlers,
+  ...persistHandlers,
+  ...instanceHandlers,
+  ...taskHandlers,
+]
