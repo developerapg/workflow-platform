@@ -1,0 +1,68 @@
+/* Design tokens — UX Spec §3.1 */
+:root {
+  /* Light mode (default) */
+  --bg-canvas: #fafbfc;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f4f5f8;
+  --bg-input: #ffffff;
+
+  --border-subtle: #e5e7eb;
+  --border-default: #d1d5db;
+
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-tertiary: #6b7280;
+  --text-muted: #9ca3af;
+  --text-disabled: #d1d5db;
+
+  --state-success: #10b981;
+  --state-success-text: #059669;
+  --state-success-bg: rgba(16, 185, 129, 0.1);
+  --state-warning: #f59e0b;
+  --state-warning-text: #d97706;
+  --state-warning-bg: rgba(245, 158, 11, 0.1);
+  --state-error: #ef4444;
+  --state-error-text: #dc2626;
+  --state-error-bg: rgba(239, 68, 68, 0.1);
+  --state-neutral: #6b7280;
+  --state-neutral-bg: rgba(107, 114, 128, 0.12);
+
+  --action-primary: #2563eb;
+  --action-primary-hover: #1d4ed8;
+  --action-text: #1d4ed8;
+  --action-bg-subtle: rgba(37, 99, 235, 0.08);
+}
+
+.dark {
+  /* Dark mode — UX Spec §3.1 */
+  --bg-canvas: #0f1117;
+  --bg-surface: #161823;
+  --bg-surface-elevated: #1a1d2a;
+  --bg-input: #0f1117;
+
+  --border-subtle: #1f2230;
+  --border-default: #2a2e3f;
+
+  --text-primary: #f3f4f6;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  --text-muted: #6b7280;
+  --text-disabled: #4b5563;
+
+  --state-success: #10b981;
+  --state-success-text: #34d399;
+  --state-success-bg: rgba(16, 185, 129, 0.15);
+  --state-warning: #f59e0b;
+  --state-warning-text: #fbbf24;
+  --state-warning-bg: rgba(245, 158, 11, 0.15);
+  --state-error: #ef4444;
+  --state-error-text: #f87171;
+  --state-error-bg: rgba(239, 68, 68, 0.15);
+  --state-neutral: #6b7280;
+  --state-neutral-bg: rgba(107, 114, 128, 0.18);
+
+  --action-primary: #2563eb;
+  --action-primary-hover: #1d4ed8;
+  --action-text: #93c5fd;
+  --action-bg-subtle: rgba(37, 99, 235, 0.15);
+}
