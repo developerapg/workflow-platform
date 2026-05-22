@@ -45,7 +45,7 @@ Es un documento **ejecutable**: los bloques SQL contenidos pueden correrse contr
 | Documento | Versión | Propiedad sobre |
 | --- | --- | --- |
 | Workflow Platform — Documento de Visión | 1.0 | Visión de negocio, multi-tenancy por BD, criterios de éxito. |
-| Workflow Platform — Definición de Metadata | 1.1 | Metamodelo conceptual, firmas JSON, reglas de validación VR-01 a VR-41, decisiones de persistencia (inline vs. tabla dedicada). |
+| Workflow Platform — Definición de Metadata | 1.0 | Metamodelo conceptual, firmas JSON, reglas de validación VR-01 a VR-41, decisiones de persistencia (inline vs. tabla dedicada). |
 | Workflow Platform — UX Spec | 1.0 | Patrones de UI; consultado para entender qué operaciones lecturas/escrituras dispara cada módulo (de ahí derivan algunos índices). |
 
 ## 1.5 Convenciones del documento

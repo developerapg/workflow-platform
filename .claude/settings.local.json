@@ -6,7 +6,8 @@
       "Bash(npm install *)",
       "Bash(npm --prefix \"d:/ApgSolutions/projects/workflow-platform\" run build)",
       "Bash(npm --prefix \"d:/ApgSolutions/projects/workflow-platform\" run typecheck)",
-      "Bash(npm --prefix \"d:/ApgSolutions/projects/workflow-platform\" run lint)"
+      "Bash(npm --prefix \"d:/ApgSolutions/projects/workflow-platform\" run lint)",
+      "Bash(npm run *)"
     ]
   }
 }

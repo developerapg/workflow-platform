@@ -48,9 +48,9 @@ El frontend opera contra un único proyecto (el backend MVP es single-project; v
 | --- | --- | --- |
 | Workflow Platform — Documento de Visión | 1.0 | Visión de producto, principios. |
 | Workflow Platform — UX Spec | 1.0 | Patrones de UI, comportamientos esperados de cada módulo, criterios de aceptación visual. **Este SRS operacionaliza el UX Spec.** |
-| Workflow Platform — Definición de Metadata | 1.1 | Firmas JSON canónicas que el frontend debe construir y consumir. |
+| Workflow Platform — Definición de Metadata | 1.0 | Firmas JSON canónicas que el frontend debe construir y consumir. |
 | Workflow Platform — Modelo de Datos Físico | 1.1 | Solo referencia: el frontend no toca BD. |
-| Workflow Platform — SRS Backend | 1.1 | **Contrato del API que este frontend consume.** Endpoints, formatos, códigos de error, reglas de validación que se manifestarán en la UI. |
+| Workflow Platform — SRS Backend | 1.0 | **Contrato del API que este frontend consume.** Endpoints, formatos, códigos de error, reglas de validación que se manifestarán en la UI. |
 
 ## 1.5 Convenciones
 

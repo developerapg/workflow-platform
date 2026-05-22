@@ -27,10 +27,25 @@
   --state-neutral: #6b7280;
   --state-neutral-bg: rgba(107, 114, 128, 0.12);
 
+  /* State border + glow tokens — UX Spec §3.5 */
+  --state-success-glow: 0 0 0 1px rgba(16, 185, 129, 0.35), 0 0 8px rgba(16, 185, 129, 0.25);
+  --state-warning-glow: 0 0 0 1px rgba(245, 158, 11, 0.35), 0 0 8px rgba(245, 158, 11, 0.25);
+  --state-error-glow: 0 0 0 1px rgba(239, 68, 68, 0.35), 0 0 8px rgba(239, 68, 68, 0.25);
+
   --action-primary: #2563eb;
   --action-primary-hover: #1d4ed8;
   --action-text: #1d4ed8;
   --action-bg-subtle: rgba(37, 99, 235, 0.08);
+
+  /* Data-type badge colors — UX Spec §3.5 */
+  --type-data-uuid: #a78bfa;
+  --type-data-string: #60a5fa;
+  --type-data-integer: #34d399;
+  --type-data-decimal: #2dd4bf;
+  --type-data-boolean: #f472b6;
+  --type-data-date: #fb923c;
+  --type-data-datetime: #facc15;
+  --type-data-json: #94a3b8;
 }
 
 .dark {
@@ -61,8 +76,23 @@
   --state-neutral: #6b7280;
   --state-neutral-bg: rgba(107, 114, 128, 0.18);
 
+  /* State border + glow tokens — dark mode */
+  --state-success-glow: 0 0 0 1px rgba(16, 185, 129, 0.45), 0 0 10px rgba(16, 185, 129, 0.3);
+  --state-warning-glow: 0 0 0 1px rgba(245, 158, 11, 0.45), 0 0 10px rgba(245, 158, 11, 0.3);
+  --state-error-glow: 0 0 0 1px rgba(239, 68, 68, 0.45), 0 0 10px rgba(239, 68, 68, 0.3);
+
   --action-primary: #2563eb;
   --action-primary-hover: #1d4ed8;
   --action-text: #93c5fd;
   --action-bg-subtle: rgba(37, 99, 235, 0.15);
+
+  /* Data-type badge colors — dark (same hues, same tokens) */
+  --type-data-uuid: #a78bfa;
+  --type-data-string: #60a5fa;
+  --type-data-integer: #34d399;
+  --type-data-decimal: #2dd4bf;
+  --type-data-boolean: #f472b6;
+  --type-data-date: #fb923c;
+  --type-data-datetime: #facc15;
+  --type-data-json: #94a3b8;
 }

@@ -51,8 +51,8 @@ Es la pieza que el resto de la plataforma asume como prerequisito: sin Catálogo
 | Documento | Versión | Propiedad sobre |
 | --- | --- | --- |
 | Workflow Platform — Documento de Visión | 1.0 | Multi-tenancy por BD, modelo de negocio, criterios de éxito. |
-| Workflow Platform — Definición de Metadata | 1.1 | Metamodelo de proyecto. Este documento se conecta con `metadata.id_object` del root_project de cada BD de proyecto. |
-| Workflow Platform — Modelo de Datos Físico | 1.1 | Define qué se aplica al crear una BD nueva de proyecto. Este documento orquesta esa creación. |
+| Workflow Platform — Definición de Metadata | 1.0 | Metamodelo de proyecto. Este documento se conecta con `metadata.id_object` del root_project de cada BD de proyecto. |
+| Workflow Platform — Modelo de Datos Físico | 1.0 | Define qué se aplica al crear una BD nueva de proyecto. Este documento orquesta esa creación. |
 | Workflow Platform — UX Spec | 1.0 | Pantallas de login, selector de proyecto, gestión de usuarios. |
 
 ## 1.5 Convenciones

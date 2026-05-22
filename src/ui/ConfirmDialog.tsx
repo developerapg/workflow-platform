@@ -44,14 +44,14 @@ export function ConfirmDialog({
       size="sm"
       footer={
         <>
-          <Button variant="secondary" size="sm" onClick={handleClose} disabled={loading}>
+          <Button variant="secondary" size="sm" onClick={handleClose} disabled={!!loading}>
             Cancelar
           </Button>
           <Button
             variant={variant}
             size="sm"
             disabled={!canConfirm}
-            loading={loading}
+            {...(loading !== undefined ? { loading } : {})}
             onClick={onConfirm}
           >
             {confirmLabel}

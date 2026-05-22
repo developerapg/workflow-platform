@@ -41,7 +41,7 @@ const dotColor: Record<NonNullable<BadgeProps['variant']>, string> = {
 export function Badge({ variant = 'neutral', children, className, dot }: BadgeProps) {
   return (
     <span className={cn(badgeVariants({ variant }), className)}>
-      {dot && <span className={cn('h-1.5 w-1.5 rounded-full', dotColor[variant])} aria-hidden />}
+      {dot && <span className={cn('h-1.5 w-1.5 rounded-full', variant ? dotColor[variant] : dotColor['neutral'])} aria-hidden />}
       {children}
     </span>
   )

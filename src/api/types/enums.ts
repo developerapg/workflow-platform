@@ -2,6 +2,7 @@
 export type ObjectType =
   | 'root_project'
   | 'entity'
+  | 'attribute'
   | 'form_definition'
   | 'data_view'
   | 'process_definition'

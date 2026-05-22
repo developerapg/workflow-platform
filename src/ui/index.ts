@@ -41,3 +41,6 @@ export type { CardProps } from './Card'
 
 export { Breadcrumbs } from './Breadcrumbs'
 export type { BreadcrumbItem } from './Breadcrumbs'
+
+export { StatusFrame } from './StatusFrame'
+export type { StatusFrameProps, ArtifactState } from './StatusFrame'
