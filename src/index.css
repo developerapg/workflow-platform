@@ -5,6 +5,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* React Flow — selected edge highlight */
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path,
+.react-flow__edge:focus-visible .react-flow__edge-path {
+  stroke: var(--action-primary) !important;
+  stroke-width: 2.5 !important;
+}
+
 @layer base {
   *, *::before, *::after {
     box-sizing: border-box;

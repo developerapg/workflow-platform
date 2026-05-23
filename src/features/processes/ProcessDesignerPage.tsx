@@ -8,6 +8,7 @@ import ReactFlow, {
   updateEdge,
   applyNodeChanges,
   applyEdgeChanges,
+  ConnectionMode,
   type Node,
   type Edge,
   type Connection,
@@ -22,6 +23,7 @@ import { toast } from 'sonner'
 import { useProcess, useForms, usePersist, useStartInstance } from '@/api/queries'
 import { Button, Breadcrumbs, Spinner, ErrorState, Modal } from '@/ui'
 import type { ProcessNode, ContextVariable } from '@/api/types'
+import type { Direction } from './canvas/nodes/NodeShell'
 import { StartNode } from './canvas/nodes/StartNode'
 import { EndNode } from './canvas/nodes/EndNode'
 import { HumanTaskNode } from './canvas/nodes/HumanTaskNode'
@@ -32,6 +34,77 @@ import { NodePalette } from './canvas/palette/NodePalette'
 import { validateProcess, deriveStatus } from './validation'
 import type { NodeType } from '@/api/types'
 import type { ArtifactState } from '@/ui'
+
+// ── Edge type helpers ─────────────────────────────────────────────────────────
+
+function resolveEdgeType(
+  src: { x: number; y: number } | undefined,
+  tgt: { x: number; y: number } | undefined,
+): 'straight' | 'smoothstep' {
+  if (!src || !tgt) return 'smoothstep'
+  const THRESHOLD = 10
+  return Math.abs(src.x - tgt.x) <= THRESHOLD || Math.abs(src.y - tgt.y) <= THRESHOLD
+    ? 'straight'
+    : 'smoothstep'
+}
+
+function getOccupiedSides(nodeId: string, edges: { source: string; sourceHandle?: string | null }[]): Direction[] {
+  const dirs: Direction[] = ['top', 'right', 'bottom', 'left']
+  return dirs.filter((dir) =>
+    edges.some((e) => e.source === nodeId && e.sourceHandle === dir),
+  )
+}
+
+const OPPOSITE_DIR: Record<Direction, Direction> = { right: 'left', left: 'right', bottom: 'top', top: 'bottom' }
+
+/**
+ * Assigns source/target handles to a set of edges leaving the same node, avoiding
+ * side collisions where possible. Edges are sorted by their "ideal" direction score
+ * and each gets the best available side. Falls back to sharing sides when there are
+ * more than 4 outgoing edges.
+ */
+function assignHandlesWithoutCollision(
+  sourceId: string,
+  edges: Edge[],
+  nodePositions: Map<string, { x: number; y: number }>,
+): Edge[] {
+  const srcPos = nodePositions.get(sourceId)
+  if (!srcPos) return edges
+
+  const DIRS = ['right', 'bottom', 'left', 'top'] as const
+  type Dir = typeof DIRS[number]
+
+  // Score each edge by angle to determine preferred direction order
+  const scored = edges.map((e) => {
+    const tgtPos = nodePositions.get(e.target)
+    if (!tgtPos) return { edge: e, preferred: DIRS as unknown as Dir[] }
+    const dx = tgtPos.x - srcPos.x
+    const dy = tgtPos.y - srcPos.y
+    // Sort directions by how well they align with the actual vector
+    const scores: [Dir, number][] = [
+      ['right',  dx],
+      ['left',  -dx],
+      ['bottom', dy],
+      ['top',   -dy],
+    ]
+    scores.sort((a, b) => b[1] - a[1])
+    return { edge: e, preferred: scores.map(([d]) => d) }
+  })
+
+  const used = new Set<string>()
+  const result: Edge[] = []
+
+  for (const { edge, preferred } of scored) {
+    // Pick the first available preferred direction; fallback to first preference (shared side)
+    const dir = preferred.find((d) => !used.has(d)) ?? preferred[0]
+    used.add(dir)
+    result.push({ ...edge, sourceHandle: dir, targetHandle: OPPOSITE_DIR[dir] })
+  }
+
+  return result
+}
+
+// ── Node artifact state ───────────────────────────────────────────────────────
 
 function nodeArtifactState(
   node: ProcessNode,
@@ -63,7 +136,9 @@ function toRfNode(
   n: ProcessNode,
   forms: { id_object: string; object_name: string }[],
   errorNodeIds: Set<string> = new Set(),
-  onAddNext?: (sourceId: string) => void,
+  onAddNext?: (sourceId: string, type: NodeType, direction: Direction) => void,
+  hasStart?: boolean,
+  edges: { source: string; sourceHandle?: string | null }[] = [],
 ): Node {
   const formName =
     n.config._type === 'human_task'
@@ -79,18 +154,32 @@ function toRfNode(
       label: n.name.replace(/_/g, ' '),
       formName,
       nodeState: nodeArtifactState(n, errorNodeIds),
-      onAddNext: n.node_type !== 'end' && onAddNext ? () => onAddNext(n.id_node) : undefined,
+      onAddNext: n.node_type !== 'end' && onAddNext
+        ? (type: NodeType, dir: Direction) => onAddNext(n.id_node, type, dir)
+        : undefined,
+      hasStart,
+      occupiedSides: getOccupiedSides(n.id_node, edges),
       _processNode: n,
     },
   }
 }
 
-function toRfEdge(t: { id: string; from_node_id: string; to_node_id: string; condition: string | null; label: string }): Edge {
+function toRfEdge(
+  t: { id: string; from_node_id: string; to_node_id: string; condition: string | null; label: string; sourceHandle?: string | null; targetHandle?: string | null },
+  nodePositions?: Map<string, { x: number; y: number }>,
+): Edge {
+  const edgeType = resolveEdgeType(
+    nodePositions?.get(t.from_node_id),
+    nodePositions?.get(t.to_node_id),
+  )
   return {
     id: t.id,
-    type: 'smoothstep',
+    type: edgeType,
     source: t.from_node_id,
     target: t.to_node_id,
+    // normalize handle IDs: strip legacy "-source"/"-target" suffixes from previous schema
+    sourceHandle: t.sourceHandle ? t.sourceHandle.replace(/-(source|target)$/, '') : null,
+    targetHandle: t.targetHandle ? t.targetHandle.replace(/-(source|target)$/, '') : null,
     label: t.label || undefined,
     data: { condition: t.condition },
     markerEnd: { type: MarkerType.ArrowClosed },
@@ -118,7 +207,8 @@ export default function ProcessDesignerPage() {
   const [rfEdges, setRfEdges] = useState<Edge[]>([])
   const rfInstance = useRef<ReactFlowInstance | null>(null)
   // Stable ref to addConnectedNode so closures in node data always call the latest version
-  const addConnectedNodeRef = useRef<(sourceId: string) => void>(() => {})
+  const addConnectedNodeRef = useRef<(sourceId: string, type: NodeType, dir: Direction) => void>(() => {})
+  const [isDraggingEdge, setIsDraggingEdge] = useState(false)
 
   // Process metadata
   const [processName, setProcessName] = useState('')
@@ -139,10 +229,20 @@ export default function ProcessDesignerPage() {
     setProcessName(remote.object_name)
     setProcessDescription(remote.content.description)
     setContextVariables(remote.content.context_variables)
+    const hasStart = (remote.nodes ?? []).some((n) => n.node_type === 'start')
+    const posMap = new Map((remote.nodes ?? []).map((n) => [n.id_node, { x: n.position_x, y: n.position_y }]))
+    const rfEdgesSeed = remote.content.transitions.map((t) => toRfEdge(t, posMap))
     setRfNodes((remote.nodes ?? []).map((n) =>
-      toRfNode(n, forms, new Set(), (srcId) => addConnectedNodeRef.current(srcId)),
+      toRfNode(
+        n,
+        forms,
+        new Set(),
+        (srcId, type, dir) => addConnectedNodeRef.current(srcId, type, dir),
+        hasStart,
+        rfEdgesSeed,
+      ),
     ))
-    setRfEdges(remote.content.transitions.map(toRfEdge))
+    setRfEdges(rfEdgesSeed)
     setIsDirty(false)
   }, [remote, forms])
 
@@ -153,6 +253,52 @@ export default function ProcessDesignerPage() {
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       setRfNodes((nds) => applyNodeChanges(changes, nds))
+      // When nodes finish moving, recalculate edge type + handles + occupiedSides
+      const hasPositionChange = changes.some((c) => c.type === 'position' && !('dragging' in c && c.dragging))
+      if (hasPositionChange) {
+        const movedIds = new Set(
+          changes
+            .filter((c) => c.type === 'position' && !('dragging' in c && c.dragging))
+            .map((c) => c.id),
+        )
+        setRfNodes((nds) => {
+          const posMap = new Map(nds.map((n) => [n.id, n.position]))
+
+          setRfEdges((eds) => {
+            // Collect source nodes whose edges need recalculation
+            const affectedSourceIds = new Set(
+              eds.filter((e) => movedIds.has(e.source) || movedIds.has(e.target)).map((e) => e.source),
+            )
+
+            // Assign handles per source node to avoid side collisions
+            const reassigned = new Map<string, Edge>()
+            for (const srcId of affectedSourceIds) {
+              const outgoing = eds.filter((e) => e.source === srcId && (movedIds.has(e.source) || movedIds.has(e.target)))
+              const fixed = assignHandlesWithoutCollision(srcId, outgoing, posMap)
+              for (const e of fixed) reassigned.set(e.id, e)
+            }
+
+            const updated = eds.map((e) => {
+              const reassignedEdge = reassigned.get(e.id)
+              if (!reassignedEdge) return e
+              const srcNode = nds.find((n) => n.id === e.source)
+              const tgtNode = nds.find((n) => n.id === e.target)
+              const newType = resolveEdgeType(srcNode?.position, tgtNode?.position)
+              return { ...reassignedEdge, type: newType }
+            })
+
+            setRfNodes((prevNds) =>
+              prevNds.map((n) =>
+                affectedSourceIds.has(n.id)
+                  ? { ...n, data: { ...n.data, occupiedSides: getOccupiedSides(n.id, updated) } }
+                  : n,
+              ),
+            )
+            return updated
+          })
+          return nds
+        })
+      }
       if (changes.some((c) => c.type !== 'select')) markDirty()
     },
     [markDirty],
@@ -160,7 +306,25 @@ export default function ProcessDesignerPage() {
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      setRfEdges((eds) => applyEdgeChanges(changes, eds))
+      setRfEdges((eds) => {
+        const updated = applyEdgeChanges(changes, eds)
+        // When edges are removed, free up the occupied sides of their source nodes
+        const removals = changes.filter((c) => c.type === 'remove')
+        if (removals.length > 0) {
+          const removedIds = new Set(removals.map((c) => c.id))
+          const affected = new Set(
+            eds.filter((e) => removedIds.has(e.id)).map((e) => e.source),
+          )
+          setRfNodes((nds) =>
+            nds.map((n) =>
+              affected.has(n.id)
+                ? { ...n, data: { ...n.data, occupiedSides: getOccupiedSides(n.id, updated) } }
+                : n,
+            ),
+          )
+        }
+        return updated
+      })
       markDirty()
     },
     [markDirty],
@@ -169,7 +333,21 @@ export default function ProcessDesignerPage() {
   // Allow dragging edge endpoints to different handles (PD-73, PD-74)
   const onEdgeUpdate = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
-      setRfEdges((eds) => updateEdge(oldEdge, newConnection, eds))
+      setRfEdges((eds) => {
+        const updated = updateEdge(oldEdge, newConnection, eds)
+        // Recalculate occupiedSides for any node whose outgoing handle changed
+        const affected = new Set(
+          [oldEdge.source, newConnection.source].filter((x): x is string => Boolean(x)),
+        )
+        setRfNodes((nds) =>
+          nds.map((n) =>
+            affected.has(n.id)
+              ? { ...n, data: { ...n.data, occupiedSides: getOccupiedSides(n.id, updated) } }
+              : n,
+          ),
+        )
+        return updated
+      })
       markDirty()
     },
     [markDirty],
@@ -177,33 +355,68 @@ export default function ProcessDesignerPage() {
 
   const onConnect = useCallback(
     (params: Connection) => {
-      setRfEdges((eds) =>
-        addEdge(
-          {
-            ...params,
-            id: `t-${crypto.randomUUID()}`,
-            type: 'smoothstep',
-            markerEnd: { type: MarkerType.ArrowClosed },
-            style: { stroke: 'var(--border-default)', strokeWidth: 2, borderRadius: 8 },
-            labelStyle: { fontSize: 11, fill: 'var(--text-secondary)' },
-            labelBgStyle: { fill: 'var(--bg-surface)', stroke: 'var(--border-subtle)', strokeWidth: 1, rx: 4 },
-            labelBgPadding: [4, 6] as [number, number],
-            data: { condition: null },
-          },
-          eds,
-        ),
-      )
+      const srcNode = rfNodes.find((n) => n.id === params.source)
+      const tgtNode = rfNodes.find((n) => n.id === params.target)
+      const edgeType = resolveEdgeType(srcNode?.position, tgtNode?.position)
+      const newEdge: Edge = {
+        ...params,
+        id: `t-${crypto.randomUUID()}`,
+        type: edgeType,
+        source: params.source!,
+        target: params.target!,
+        markerEnd: { type: MarkerType.ArrowClosed },
+        style: { stroke: 'var(--border-default)', strokeWidth: 2, borderRadius: 8 },
+        labelStyle: { fontSize: 11, fill: 'var(--text-secondary)' },
+        labelBgStyle: { fill: 'var(--bg-surface)', stroke: 'var(--border-subtle)', strokeWidth: 1, rx: 4 },
+        labelBgPadding: [4, 6] as [number, number],
+        data: { condition: null },
+      }
+      setRfEdges((eds) => {
+        const updated = addEdge(newEdge, eds)
+        // Update occupiedSides of source node after manual connection
+        if (params.source) {
+          setRfNodes((nds) =>
+            nds.map((n) =>
+              n.id === params.source
+                ? { ...n, data: { ...n.data, occupiedSides: getOccupiedSides(n.id, updated) } }
+                : n,
+            ),
+          )
+        }
+        return updated
+      })
       markDirty()
     },
-    [markDirty],
+    [rfNodes, markDirty],
   )
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       const pn = node.data._processNode as ProcessNode | undefined
+      const outgoing = rfEdges.filter((e) => e.source === node.id)
+      const targets = outgoing.map((e) => rfNodes.find((n) => n.id === e.target)).filter(Boolean)
+      console.log('[NODE DEBUG]', JSON.stringify({
+        node,
+        outgoingEdges: outgoing.map((e) => ({
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          sourceHandle: e.sourceHandle,
+          targetHandle: e.targetHandle,
+          type: e.type,
+          label: e.label,
+          data: e.data,
+        })),
+        targetNodes: targets.map((n) => n && ({
+          id: n.id,
+          type: n.type,
+          position: n.position,
+          data: { name: n.data.name, label: n.data.label, occupiedSides: n.data.occupiedSides },
+        })),
+      }, null, 2))
       if (pn) setSelection({ type: 'node', node: pn })
     },
-    [],
+    [rfEdges, rfNodes],
   )
 
   const onEdgeClick = useCallback(
@@ -220,54 +433,85 @@ export default function ProcessDesignerPage() {
   // ── Add connected node from "+" button (UX Spec §7.4, PD-50..PD-55) ─────────
 
   const addConnectedNode = useCallback(
-    (sourceNodeId: string) => {
+    (sourceNodeId: string, nodeType: NodeType, direction: Direction) => {
       setRfNodes((prev) => {
         const sourceRfNode = prev.find((n) => n.id === sourceNodeId)
+        const OFFSET = 240
+        const snap = (v: number) => Math.round(v / 20) * 20
         const position = sourceRfNode
-          ? { x: sourceRfNode.position.x + 240, y: sourceRfNode.position.y }
+          ? {
+              x: snap(sourceRfNode.position.x + (direction === 'right' ? OFFSET : direction === 'left' ? -OFFSET : 0)),
+              y: snap(sourceRfNode.position.y + (direction === 'bottom' ? OFFSET : direction === 'top' ? -OFFSET : 0)),
+            }
           : { x: 400, y: 200 }
 
         const id_node = `node-${crypto.randomUUID()}`
+        const defaultName = nodeType
+        const config: ProcessNode['config'] =
+          nodeType === 'human_task'   ? { _type: 'human_task', form_ref: '', assignment: { type: 'role', value: '' }, due_in: null }
+          : nodeType === 'end'         ? { _type: 'end', result_label: 'Completado' }
+          : nodeType === 'script_task' ? { _type: 'script_task', language: 'javascript', source: '' }
+          : nodeType === 'start'       ? { _type: 'start' }
+          :                              { _type: 'exclusive_gateway', default_transition_id: null }
+
         const processNode: ProcessNode = {
           id_node,
           process_id: id ?? 'new',
-          node_type: 'human_task',
-          name: 'tarea',
+          node_type: nodeType,
+          name: defaultName,
           description: '',
           position_x: position.x,
           position_y: position.y,
-          config: { _type: 'human_task', form_ref: '', assignment: { type: 'role', value: '' }, due_in: null },
+          config,
         }
+
+        const sourceHandle = direction
+        const targetHandle = OPPOSITE_DIR[direction]
+        const edgeType = resolveEdgeType(sourceRfNode?.position, position)
+        const newEdge: Edge = {
+          id: `t-${crypto.randomUUID()}`,
+          type: edgeType,
+          source: sourceNodeId,
+          sourceHandle,
+          target: id_node,
+          targetHandle,
+          markerEnd: { type: MarkerType.ArrowClosed },
+          style: { stroke: 'var(--border-default)', strokeWidth: 2, borderRadius: 8 },
+            labelStyle: { fontSize: 11, fill: 'var(--text-secondary)' },
+          labelBgStyle: { fill: 'var(--bg-surface)', stroke: 'var(--border-subtle)', strokeWidth: 1, rx: 4 },
+          labelBgPadding: [4, 6] as [number, number],
+          data: { condition: null },
+        }
+
+        setRfEdges((eds) => {
+          const updated = [...eds, newEdge]
+          // Update occupiedSides of the source node now that a new edge exists
+          setRfNodes((nds) =>
+            nds.map((n) =>
+              n.id === sourceNodeId
+                ? { ...n, data: { ...n.data, occupiedSides: getOccupiedSides(n.id, updated) } }
+                : n,
+            ),
+          )
+          return updated
+        })
 
         const rfNode: Node = {
           id: id_node,
-          type: 'human_task',
+          type: nodeType,
           position,
           data: {
-            name: 'tarea',
-            label: 'tarea',
-            nodeState: 'draft',
-            // Use ref so this closure always calls the current version
-            onAddNext: () => addConnectedNodeRef.current(id_node),
+            name: defaultName,
+            label: defaultName.replace(/_/g, ' '),
+            nodeState: 'draft' as const,
+            onAddNext: nodeType !== 'end'
+              ? (t: NodeType, dir: Direction) => addConnectedNodeRef.current(id_node, t, dir)
+              : undefined,
+            hasStart: prev.some((n) => n.type === 'start') || nodeType === 'start',
+            occupiedSides: [] as Direction[],
             _processNode: processNode,
           },
         }
-
-        setRfEdges((eds) => [
-          ...eds,
-          {
-            id: `t-${crypto.randomUUID()}`,
-            type: 'smoothstep',
-            source: sourceNodeId,
-            target: id_node,
-            markerEnd: { type: MarkerType.ArrowClosed },
-            style: { stroke: 'var(--border-default)', strokeWidth: 2, borderRadius: 8 },
-            labelStyle: { fontSize: 11, fill: 'var(--text-secondary)' },
-            labelBgStyle: { fill: 'var(--bg-surface)', stroke: 'var(--border-subtle)', strokeWidth: 1, rx: 4 },
-            labelBgPadding: [4, 6] as [number, number],
-            data: { condition: null },
-          },
-        ])
 
         setSelection({ type: 'node', node: processNode })
         markDirty()
@@ -279,6 +523,17 @@ export default function ProcessDesignerPage() {
 
   // Keep ref in sync with the latest callback
   addConnectedNodeRef.current = addConnectedNode
+
+  // Propagate isDraggingEdge to all node data so NodeShell can suppress "+" buttons
+  useEffect(() => {
+    setRfNodes((nds) =>
+      nds.map((n) =>
+        n.data.isDraggingEdge === isDraggingEdge
+          ? n
+          : { ...n, data: { ...n.data, isDraggingEdge } },
+      ),
+    )
+  }, [isDraggingEdge])
 
   // ── Drop from palette onto canvas (PD-30..PD-34) ─────────────────────────
 
@@ -334,7 +589,11 @@ export default function ProcessDesignerPage() {
         name: type,
         label: type.replace(/_/g, ' '),
         nodeState: 'draft' as const,
-        onAddNext: type !== 'end' ? () => addConnectedNodeRef.current(id_node) : undefined,
+        onAddNext: type !== 'end'
+          ? (t: NodeType, dir: Direction) => addConnectedNodeRef.current(id_node, t, dir)
+          : undefined,
+        hasStart: rfNodes.some((n) => n.type === 'start') || type === 'start',
+        occupiedSides: [] as Direction[],
         _processNode: processNode,
       },
     }
@@ -452,6 +711,7 @@ export default function ProcessDesignerPage() {
           operation: 'create' as const,
           object_type: 'node' as const,
           data: {
+            id_node: n.id_node,
             process_id: procTempId,
             node_type: n.node_type,
             name: n.name,
@@ -520,6 +780,7 @@ export default function ProcessDesignerPage() {
               operation: 'create' as const,
               object_type: 'node' as const,
               data: {
+                id_node: n.id_node,
                 process_id: remote.id_object,
                 node_type: n.node_type,
                 name: n.name,
@@ -689,7 +950,12 @@ export default function ProcessDesignerPage() {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onEdgeUpdate={onEdgeUpdate}
+            onEdgeUpdateStart={() => setIsDraggingEdge(true)}
+            onEdgeUpdateEnd={() => setIsDraggingEdge(false)}
+            onConnectStart={() => setIsDraggingEdge(true)}
+            onConnectEnd={() => setIsDraggingEdge(false)}
             edgesUpdatable
+            connectionMode={ConnectionMode.Loose}
             onNodeClick={onNodeClick}
             onEdgeClick={onEdgeClick}
             onPaneClick={onPaneClick}

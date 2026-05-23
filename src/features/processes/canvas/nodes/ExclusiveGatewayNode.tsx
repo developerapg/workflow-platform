@@ -1,16 +1,35 @@
 import { Handle, Position, type NodeProps } from 'reactflow'
 import { AlertTriangle } from 'lucide-react'
+import type { NodeType } from '@/api/types'
+import type { Direction } from './NodeShell'
 import { NodeShell } from './NodeShell'
 
 interface GatewayData {
   name: string
   label: string
-  onAddNext?: () => void
+  onAddNext?: (type: NodeType, direction: Direction) => void
+  hasStart?: boolean
+  occupiedSides?: Direction[]
+  isDraggingEdge?: boolean
 }
+
+const HANDLE_CLASS = [
+  '!h-2 !w-2 !rounded-full !border !border-[var(--action-primary)] !bg-transparent',
+  '!opacity-0 group-hover/node:!opacity-100 !transition-opacity',
+].join(' ')
 
 export function ExclusiveGatewayNode({ data, selected }: NodeProps<GatewayData>) {
   return (
-    <NodeShell onAddNext={data.onAddNext}>
+    <NodeShell
+      {...(data.onAddNext
+        ? {
+            onAddNext: data.onAddNext,
+            hasStart: data.hasStart,
+            occupiedSides: data.occupiedSides,
+            isDraggingEdge: data.isDraggingEdge,
+          }
+        : {})}
+    >
     <div className="relative flex items-center justify-center" style={{ width: 72, height: 72 }}>
       {/* Diamond shape — always warning state for gateway (PD-222) */}
       <div
@@ -46,9 +65,11 @@ export function ExclusiveGatewayNode({ data, selected }: NodeProps<GatewayData>)
         </div>
       )}
 
-      <Handle type="target" position={Position.Left} className="!bg-[var(--state-neutral)]" style={{ left: -4 }} />
-      <Handle type="source" position={Position.Right} className="!bg-[var(--state-neutral)]" style={{ right: -4 }} />
-      <Handle type="source" id="bottom" position={Position.Bottom} className="!bg-[var(--state-neutral)]" style={{ bottom: -4 }} />
+      {/* Bidirectional handles via connectionMode="loose" — 1 per side (PD-70, PD-72) */}
+      <Handle type="source" position={Position.Top}    id="top"    className={HANDLE_CLASS} style={{ top: -4 }} />
+      <Handle type="source" position={Position.Right}  id="right"  className={HANDLE_CLASS} style={{ right: -4 }} />
+      <Handle type="source" position={Position.Bottom} id="bottom" className={HANDLE_CLASS} style={{ bottom: -4 }} />
+      <Handle type="source" position={Position.Left}   id="left"   className={HANDLE_CLASS} style={{ left: -4 }} />
     </div>
     </NodeShell>
   )

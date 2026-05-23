@@ -169,7 +169,7 @@ export const persistHandlers = [
         // --- Node ---
         case 'node:create': {
           const node: ProcessNode = {
-            id_node: realId,
+            id_node: data['id_node'] as string,
             process_id: idMap[data['process_id'] as string] ?? (data['process_id'] as string),
             node_type: data['node_type'] as ProcessNode['node_type'],
             name: data['name'] as string,
