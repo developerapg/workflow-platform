@@ -148,12 +148,18 @@ export interface ContextVariable {
   scope: VariableScope
 }
 
+export type TransitionSide = 'top' | 'right' | 'bottom' | 'left'
+
 export interface Transition {
   id: string
   from_node_id: string
   to_node_id: string
   condition: string | null
   label: string
+  /** Side of the source node the edge leaves from. Optional; if absent, UI derives it from positions. */
+  source_side?: TransitionSide | null
+  /** Side of the target node the edge enters. Optional; if absent, UI derives it from positions. */
+  target_side?: TransitionSide | null
 }
 
 export interface CanvasMetadata {
@@ -225,9 +231,16 @@ export interface ProcessNode {
   id_node: string
   process_id: string
   node_type: NodeType
+  /** Technical name (snake_case, VR-40). Used by the engine and as referencable identifier. */
   name: string
+  /** Human-readable label rendered on the canvas. If absent, UI derives it from `name`. */
+  display_name?: string
   description: string
   position_x: number
   position_y: number
+  /** Optional manual width override (UI). When absent, node sizes itself to its content. */
+  width?: number
+  /** Optional manual height override (UI). When absent, node sizes itself to its content. */
+  height?: number
   config: NodeConfig
 }

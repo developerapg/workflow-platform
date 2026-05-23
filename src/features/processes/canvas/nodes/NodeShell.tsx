@@ -158,7 +158,7 @@ export function NodeShell({
                 className={[
                   'nodrag nopan z-50',
                   POPOVER_POSITION[dir],
-                  'absolute min-w-[168px] rounded-lg border border-[var(--border-subtle)]',
+                  'absolute min-w-[168px] max-h-[280px] overflow-y-auto rounded-lg border border-[var(--border-subtle)]',
                   'bg-[var(--bg-surface)] shadow-lg py-1',
                 ].join(' ')}
                 role="menu"

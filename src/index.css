@@ -13,6 +13,19 @@
   stroke-width: 2.5 !important;
 }
 
+/* While an edge endpoint is being dragged, reveal every handle so it can be used as drop target */
+body.rf-dragging-edge .react-flow__handle {
+  opacity: 1 !important;
+  width: 12px !important;
+  height: 12px !important;
+  z-index: 10;
+}
+
+/* Larger edge-update anchor (the draggable endpoint of a selected edge) */
+.react-flow__edgeupdater {
+  r: 6;
+}
+
 @layer base {
   *, *::before, *::after {
     box-sizing: border-box;

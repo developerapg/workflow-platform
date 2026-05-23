@@ -18,7 +18,7 @@ import ReactFlow, {
   BackgroundVariant,
   MarkerType,
 } from 'reactflow'
-import { AlertTriangle, Save, ChevronLeft, CheckCircle, Play, Plus } from 'lucide-react'
+import { AlertTriangle, Save, ChevronLeft, CheckCircle, Play, Plus, Map as MapIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { useProcess, useForms, usePersist, useStartInstance } from '@/api/queries'
 import { Button, Breadcrumbs, Spinner, ErrorState, Modal } from '@/ui'
@@ -30,7 +30,6 @@ import { HumanTaskNode } from './canvas/nodes/HumanTaskNode'
 import { ScriptTaskNode } from './canvas/nodes/ScriptTaskNode'
 import { ExclusiveGatewayNode } from './canvas/nodes/ExclusiveGatewayNode'
 import { ProcessPropertiesPanel, type Selection } from './components/ProcessPropertiesPanel'
-import { NodePalette } from './canvas/palette/NodePalette'
 import { validateProcess, deriveStatus } from './validation'
 import type { NodeType } from '@/api/types'
 import type { ArtifactState } from '@/ui'
@@ -151,7 +150,7 @@ function toRfNode(
     position: { x: n.position_x, y: n.position_y },
     data: {
       name: n.name,
-      label: n.name.replace(/_/g, ' '),
+      label: n.display_name?.trim() || n.name.replace(/_/g, ' '),
       formName,
       nodeState: nodeArtifactState(n, errorNodeIds),
       onAddNext: n.node_type !== 'end' && onAddNext
@@ -164,22 +163,62 @@ function toRfNode(
   }
 }
 
+const DEFAULT_DISPLAY_NAME: Record<NodeType, string> = {
+  start:             'Inicio',
+  end:               'Fin',
+  human_task:        'Tarea humana',
+  script_task:       'Script',
+  exclusive_gateway: 'Decisión',
+}
+
+const DEFAULT_TECH_NAME: Record<NodeType, string> = {
+  start:             'inicio',
+  end:               'fin',
+  human_task:        'tarea_humana',
+  script_task:       'script',
+  exclusive_gateway: 'decision',
+}
+
+// Generate a unique technical name within the current set (suffix _2, _3, …)
+function uniqueTechName(base: string, existing: Set<string>): string {
+  if (!existing.has(base)) return base
+  let i = 2
+  while (existing.has(`${base}_${i}`)) i++
+  return `${base}_${i}`
+}
+
+// Helper: slugify a free-text label into a snake_case technical name (VR-40)
+function slugifyName(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/^([^a-z])/, 'n_$1')
+    .slice(0, 63) || 'nodo'
+}
+
 function toRfEdge(
-  t: { id: string; from_node_id: string; to_node_id: string; condition: string | null; label: string; sourceHandle?: string | null; targetHandle?: string | null },
+  t: { id: string; from_node_id: string; to_node_id: string; condition: string | null; label: string; source_side?: string | null; target_side?: string | null; sourceHandle?: string | null; targetHandle?: string | null },
   nodePositions?: Map<string, { x: number; y: number }>,
 ): Edge {
   const edgeType = resolveEdgeType(
     nodePositions?.get(t.from_node_id),
     nodePositions?.get(t.to_node_id),
   )
+  // Prefer the canonical source_side/target_side fields; fall back to legacy sourceHandle/targetHandle
+  const normalizeHandle = (v: string | null | undefined) =>
+    v ? v.replace(/-(source|target)$/, '') : null
+  const sourceHandle = t.source_side ?? normalizeHandle(t.sourceHandle)
+  const targetHandle = t.target_side ?? normalizeHandle(t.targetHandle)
   return {
     id: t.id,
     type: edgeType,
     source: t.from_node_id,
     target: t.to_node_id,
-    // normalize handle IDs: strip legacy "-source"/"-target" suffixes from previous schema
-    sourceHandle: t.sourceHandle ? t.sourceHandle.replace(/-(source|target)$/, '') : null,
-    targetHandle: t.targetHandle ? t.targetHandle.replace(/-(source|target)$/, '') : null,
+    sourceHandle,
+    targetHandle,
     label: t.label || undefined,
     data: { condition: t.condition },
     markerEnd: { type: MarkerType.ArrowClosed },
@@ -218,10 +257,19 @@ export default function ProcessDesignerPage() {
   // UI
   const [selection, setSelection] = useState<Selection>({ type: 'none' })
   const [rightCollapsed, setRightCollapsed] = useState(false)
-  const [paletteCollapsed, setPaletteCollapsed] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [showValidation, setShowValidation] = useState(false)
   const [showStartModal, setShowStartModal] = useState(false)
+  const [showMinimap, setShowMinimap] = useState(() => {
+    try { return localStorage.getItem('wf:minimap') !== '0' } catch { return true }
+  })
+  const [savedViewport, setSavedViewport] = useState<{ x: number; y: number; zoom: number } | null>(null)
+
+  useEffect(() => {
+    try { localStorage.setItem('wf:minimap', showMinimap ? '1' : '0') } catch {
+      // ignore localStorage quota or privacy-mode failures — minimap toggle is non-critical
+    }
+  }, [showMinimap])
 
   // Seed from remote
   useEffect(() => {
@@ -243,8 +291,22 @@ export default function ProcessDesignerPage() {
       ),
     ))
     setRfEdges(rfEdgesSeed)
+    // Restore saved viewport from metadata_canvas (only meaningful if it differs from defaults)
+    const mc = remote.content.metadata_canvas
+    if (mc && (mc.zoom !== 1 || mc.pan_x !== 0 || mc.pan_y !== 0)) {
+      setSavedViewport({ x: mc.pan_x, y: mc.pan_y, zoom: mc.zoom })
+    } else {
+      setSavedViewport(null)
+    }
     setIsDirty(false)
   }, [remote, forms])
+
+  // Apply the restored viewport once RF instance is ready and a viewport was saved
+  useEffect(() => {
+    if (savedViewport && rfInstance.current) {
+      rfInstance.current.setViewport(savedViewport)
+    }
+  }, [savedViewport, rfNodes.length])
 
   const markDirty = useCallback(() => setIsDirty(true), [])
 
@@ -270,10 +332,14 @@ export default function ProcessDesignerPage() {
               eds.filter((e) => movedIds.has(e.source) || movedIds.has(e.target)).map((e) => e.source),
             )
 
-            // Assign handles per source node to avoid side collisions
+            // Assign handles per source node to avoid side collisions.
+            // Skip edges flagged as manualHandles (user dragged the endpoint).
+            const isManual = (e: Edge) => (e.data as { manualHandles?: boolean } | undefined)?.manualHandles === true
             const reassigned = new Map<string, Edge>()
             for (const srcId of affectedSourceIds) {
-              const outgoing = eds.filter((e) => e.source === srcId && (movedIds.has(e.source) || movedIds.has(e.target)))
+              const outgoing = eds.filter(
+                (e) => e.source === srcId && (movedIds.has(e.source) || movedIds.has(e.target)) && !isManual(e),
+              )
               const fixed = assignHandlesWithoutCollision(srcId, outgoing, posMap)
               for (const e of fixed) reassigned.set(e.id, e)
             }
@@ -334,8 +400,10 @@ export default function ProcessDesignerPage() {
   const onEdgeUpdate = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
       setRfEdges((eds) => {
-        const updated = updateEdge(oldEdge, newConnection, eds)
-        // Recalculate occupiedSides for any node whose outgoing handle changed
+        // Mark the edge as manually positioned so onNodesChange won't auto-reassign its handles
+        const updated = updateEdge(oldEdge, newConnection, eds).map((e) =>
+          e.id === oldEdge.id ? { ...e, data: { ...(e.data ?? {}), manualHandles: true } } : e,
+        )
         const affected = new Set(
           [oldEdge.source, newConnection.source].filter((x): x is string => Boolean(x)),
         )
@@ -436,7 +504,7 @@ export default function ProcessDesignerPage() {
     (sourceNodeId: string, nodeType: NodeType, direction: Direction) => {
       setRfNodes((prev) => {
         const sourceRfNode = prev.find((n) => n.id === sourceNodeId)
-        const OFFSET = 240
+        const OFFSET = 180
         const snap = (v: number) => Math.round(v / 20) * 20
         const position = sourceRfNode
           ? {
@@ -446,7 +514,10 @@ export default function ProcessDesignerPage() {
           : { x: 400, y: 200 }
 
         const id_node = `node-${crypto.randomUUID()}`
-        const defaultName = nodeType
+        const existingNames = new Set(prev.map((n) => (n.data._processNode as ProcessNode).name))
+        const baseName = DEFAULT_TECH_NAME[nodeType]
+        const techName = uniqueTechName(baseName, existingNames)
+        const displayName = DEFAULT_DISPLAY_NAME[nodeType]
         const config: ProcessNode['config'] =
           nodeType === 'human_task'   ? { _type: 'human_task', form_ref: '', assignment: { type: 'role', value: '' }, due_in: null }
           : nodeType === 'end'         ? { _type: 'end', result_label: 'Completado' }
@@ -458,7 +529,8 @@ export default function ProcessDesignerPage() {
           id_node,
           process_id: id ?? 'new',
           node_type: nodeType,
-          name: defaultName,
+          name: techName,
+          display_name: displayName,
           description: '',
           position_x: position.x,
           position_y: position.y,
@@ -501,8 +573,8 @@ export default function ProcessDesignerPage() {
           type: nodeType,
           position,
           data: {
-            name: defaultName,
-            label: defaultName.replace(/_/g, ' '),
+            name: techName,
+            label: displayName,
             nodeState: 'draft' as const,
             onAddNext: nodeType !== 'end'
               ? (t: NodeType, dir: Direction) => addConnectedNodeRef.current(id_node, t, dir)
@@ -525,6 +597,7 @@ export default function ProcessDesignerPage() {
   addConnectedNodeRef.current = addConnectedNode
 
   // Propagate isDraggingEdge to all node data so NodeShell can suppress "+" buttons
+  // and to <body> so global CSS can reveal all handles as drop targets.
   useEffect(() => {
     setRfNodes((nds) =>
       nds.map((n) =>
@@ -533,6 +606,8 @@ export default function ProcessDesignerPage() {
           : { ...n, data: { ...n.data, isDraggingEdge } },
       ),
     )
+    document.body.classList.toggle('rf-dragging-edge', isDraggingEdge)
+    return () => { document.body.classList.remove('rf-dragging-edge') }
   }, [isDraggingEdge])
 
   // ── Drop from palette onto canvas (PD-30..PD-34) ─────────────────────────
@@ -563,11 +638,17 @@ export default function ProcessDesignerPage() {
       ? rfInstance.current.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 })
       : { x: 200, y: 200 })
 
+    const nodeType = type as NodeType
+    const existingNames = new Set(rfNodes.map((n) => (n.data._processNode as ProcessNode).name))
+    const techName = uniqueTechName(DEFAULT_TECH_NAME[nodeType], existingNames)
+    const displayName = DEFAULT_DISPLAY_NAME[nodeType]
+
     const processNode: ProcessNode = {
       id_node,
       process_id: id ?? 'new',
-      node_type: type as ProcessNode['node_type'],
-      name: type,
+      node_type: nodeType,
+      name: techName,
+      display_name: displayName,
       description: '',
       position_x: center.x,
       position_y: center.y,
@@ -586,8 +667,8 @@ export default function ProcessDesignerPage() {
       type,
       position: center,
       data: {
-        name: type,
-        label: type.replace(/_/g, ' '),
+        name: techName,
+        label: displayName,
         nodeState: 'draft' as const,
         onAddNext: type !== 'end'
           ? (t: NodeType, dir: Direction) => addConnectedNodeRef.current(id_node, t, dir)
@@ -604,19 +685,35 @@ export default function ProcessDesignerPage() {
 
   // ── Node property change ───────────────────────────────────────────────────
 
+  const applyNodePatch = useCallback(
+    (pn: ProcessNode, patch: Partial<ProcessNode>): ProcessNode => {
+      // Auto-derive technical name from display_name when the user hasn't taken control of `name`.
+      // Heuristic: if current `name` matches slug(current display_name), they're in sync → keep auto-deriving.
+      const currentSlug = slugifyName(pn.display_name || '')
+      const nameInSync = !pn.display_name || pn.name === currentSlug || pn.name === DEFAULT_TECH_NAME[pn.node_type]
+      let updated: ProcessNode = { ...pn, ...patch }
+      if (patch.display_name !== undefined && patch.name === undefined && nameInSync) {
+        const slug = slugifyName(patch.display_name || '')
+        if (slug) updated = { ...updated, name: slug }
+      }
+      return updated
+    },
+    [],
+  )
+
   const handleNodeChange = useCallback(
     (nodeId: string, patch: Partial<ProcessNode> & { config?: ProcessNode['config'] }) => {
       setRfNodes((prev) =>
         prev.map((n) => {
           if (n.id !== nodeId) return n
           const pn = n.data._processNode as ProcessNode
-          const updated = { ...pn, ...patch }
+          const updated = applyNodePatch(pn, patch)
           return {
             ...n,
             data: {
               ...n.data,
               name: updated.name,
-              label: updated.name.replace(/_/g, ' '),
+              label: updated.display_name?.trim() || updated.name.replace(/_/g, ' '),
               _processNode: updated,
             },
           }
@@ -624,12 +721,11 @@ export default function ProcessDesignerPage() {
       )
       setSelection((prev) => {
         if (prev.type !== 'node' || prev.node.id_node !== nodeId) return prev
-        const pn = prev.node
-        return { type: 'node', node: { ...pn, ...patch } }
+        return { type: 'node', node: applyNodePatch(prev.node, patch) }
       })
       markDirty()
     },
-    [markDirty],
+    [markDirty, applyNodePatch],
   )
 
   const handleEdgeChange = useCallback(
@@ -649,17 +745,31 @@ export default function ProcessDesignerPage() {
   const getCurrentNodes = (): ProcessNode[] =>
     rfNodes.map((n) => {
       const pn = n.data._processNode as ProcessNode
-      return { ...pn, position_x: n.position.x, position_y: n.position.y }
+      // Width/height live in RF state (set by NodeResizer) when overridden; otherwise keep pn's existing values
+      const w = typeof n.width === 'number' ? n.width : pn.width
+      const h = typeof n.height === 'number' ? n.height : pn.height
+      return {
+        ...pn,
+        position_x: n.position.x,
+        position_y: n.position.y,
+        ...(w ? { width: w } : {}),
+        ...(h ? { height: h } : {}),
+      }
     })
 
-  const getCurrentTransitions = () =>
-    rfEdges.map((e) => ({
+  const getCurrentTransitions = () => {
+    const isSide = (v: unknown): v is 'top' | 'right' | 'bottom' | 'left' =>
+      v === 'top' || v === 'right' || v === 'bottom' || v === 'left'
+    return rfEdges.map((e) => ({
       id: e.id,
       from_node_id: e.source,
       to_node_id: e.target,
       condition: (e.data as { condition?: string } | undefined)?.condition ?? null,
       label: typeof e.label === 'string' ? e.label : '',
+      source_side: isSide(e.sourceHandle) ? e.sourceHandle : null,
+      target_side: isSide(e.targetHandle) ? e.targetHandle : null,
     }))
+  }
 
   // ── Validation ────────────────────────────────────────────────────────────
 
@@ -689,6 +799,7 @@ export default function ProcessDesignerPage() {
       const transitions = getCurrentTransitions()
       const status = deriveStatus(nodes, transitions)
 
+      const vp = rfInstance.current?.getViewport() ?? { x: 0, y: 0, zoom: 1 }
       const ops: Parameters<typeof persist.mutateAsync>[0]['operations'] = [
         {
           temp_id: procTempId,
@@ -703,7 +814,7 @@ export default function ProcessDesignerPage() {
               status,
               context_variables: contextVariables,
               transitions,
-              metadata_canvas: { zoom: 1, pan_x: 0, pan_y: 0 },
+              metadata_canvas: { zoom: vp.zoom, pan_x: vp.x, pan_y: vp.y },
             },
           },
         },
@@ -715,9 +826,12 @@ export default function ProcessDesignerPage() {
             process_id: procTempId,
             node_type: n.node_type,
             name: n.name,
+            display_name: n.display_name,
             description: n.description,
             position_x: n.position_x,
             position_y: n.position_y,
+            width: n.width,
+            height: n.height,
             config: n.config,
           },
         })),
@@ -746,6 +860,7 @@ export default function ProcessDesignerPage() {
     const existingNodeIds = new Set((remote.nodes ?? []).map((n) => n.id_node))
     const deletedNodeIds = [...existingNodeIds].filter((nid) => !nodes.find((n) => n.id_node === nid))
 
+    const vp = rfInstance.current?.getViewport() ?? { x: 0, y: 0, zoom: 1 }
     const ops: Parameters<typeof persist.mutateAsync>[0]['operations'] = [
       {
         operation: 'update',
@@ -759,6 +874,7 @@ export default function ProcessDesignerPage() {
             status,
             context_variables: contextVariables,
             transitions,
+            metadata_canvas: { zoom: vp.zoom, pan_x: vp.x, pan_y: vp.y },
           },
         },
       },
@@ -770,9 +886,12 @@ export default function ProcessDesignerPage() {
               id: n.id_node,
               data: {
                 name: n.name,
+                display_name: n.display_name,
                 description: n.description,
                 position_x: n.position_x,
                 position_y: n.position_y,
+                width: n.width,
+                height: n.height,
                 config: n.config,
               },
             }
@@ -784,9 +903,12 @@ export default function ProcessDesignerPage() {
                 process_id: remote.id_object,
                 node_type: n.node_type,
                 name: n.name,
+                display_name: n.display_name,
                 description: n.description,
                 position_x: n.position_x,
                 position_y: n.position_y,
+                width: n.width,
+                height: n.height,
                 config: n.config,
               },
             },
@@ -883,6 +1005,15 @@ export default function ProcessDesignerPage() {
 
         <div className="ml-auto flex items-center gap-2">
           <Button
+            variant={showMinimap ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setShowMinimap((v) => !v)}
+            title={showMinimap ? 'Ocultar minimapa' : 'Mostrar minimapa'}
+            aria-pressed={showMinimap}
+          >
+            <MapIcon size={14} aria-hidden />
+          </Button>
+          <Button
             variant="secondary"
             size="sm"
             onClick={() => setShowValidation(true)}
@@ -910,14 +1041,6 @@ export default function ProcessDesignerPage() {
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left palette (PD-10, PD-20–PD-34) */}
-        <NodePalette
-          hasStart={rfNodes.some((n) => n.type === 'start')}
-          collapsed={paletteCollapsed}
-          onToggleCollapse={() => setPaletteCollapsed((v) => !v)}
-          onAddNode={(type) => addNode(type)}
-        />
-
         {/* Canvas */}
         <div className="relative flex-1 overflow-hidden" onDrop={onDrop} onDragOver={onDragOver}>
           {/* PD-50: empty canvas CTA — shown when there are no nodes yet */}
@@ -959,21 +1082,29 @@ export default function ProcessDesignerPage() {
             onNodeClick={onNodeClick}
             onEdgeClick={onEdgeClick}
             onPaneClick={onPaneClick}
-            onInit={(inst) => { rfInstance.current = inst }}
+            onInit={(inst) => {
+              rfInstance.current = inst
+              if (savedViewport) inst.setViewport(savedViewport)
+            }}
             snapToGrid
             snapGrid={[20, 20]}
-            fitView
+            fitView={!savedViewport}
+            fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
+            minZoom={0.2}
+            maxZoom={2}
             deleteKeyCode="Delete"
             className="bg-[var(--bg-canvas)]"
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--border-subtle)" />
             <Controls className="!border-[var(--border-subtle)] !bg-[var(--bg-surface)] !shadow-none" />
-            <MiniMap
-              className="!border-[var(--border-subtle)] !bg-[var(--bg-surface)]"
-              nodeColor="var(--action-primary)"
-              maskColor="rgba(0,0,0,0.2)"
-              style={{ width: 150, height: 90 }}
-            />
+            {showMinimap && (
+              <MiniMap
+                className="!border-[var(--border-subtle)] !bg-[var(--bg-surface)]"
+                nodeColor="var(--action-primary)"
+                maskColor="rgba(0,0,0,0.2)"
+                style={{ width: 150, height: 90 }}
+              />
+            )}
           </ReactFlow>
         </div>
 

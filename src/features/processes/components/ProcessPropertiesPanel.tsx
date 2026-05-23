@@ -149,12 +149,20 @@ function NodePanel({ node, forms, outgoingTransitions, onChange }: NodePanelProp
       </div>
 
       <Input
+        label="Nombre visible"
+        value={node.display_name ?? ''}
+        onChange={(e) => onChange({ display_name: e.target.value })}
+        placeholder="Ej. Aprobación del jefe"
+        hint="Etiqueta mostrada en el canvas"
+      />
+
+      <Input
         label="Nombre técnico"
         value={node.name}
         onChange={(e) => onChange({ name: e.target.value })}
         {...(nameError ? { error: nameError } : {})}
         placeholder="nombre_nodo"
-        hint="snake_case"
+        hint="snake_case — se autogenera del nombre visible"
       />
 
       <Input

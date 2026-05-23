@@ -159,9 +159,12 @@ Tabla dedicada por las mismas razones que `attributes`: un proceso típico tiene
 | `id_node` | UUID | NO | PK. |
 | `process_id` | UUID | NO | FK a `metadata.id_object` (donde `object_type = 'process_definition'`). |
 | `node_type` | VARCHAR(32) | NO | Tipo del nodo: `start`, `end`, `human_task`, `script_task`, `exclusive_gateway`. |
-| `name` | VARCHAR(128) | NO | Nombre legible del nodo. Único dentro del proceso. |
+| `name` | VARCHAR(128) | NO | Nombre técnico del nodo (snake_case, VR-40). Único dentro del proceso. |
+| `display_name` | VARCHAR(255) | SÍ | Nombre legible mostrado en el canvas. Si es `NULL`, el UI lo deriva de `name`. |
 | `position_x` | NUMERIC | NO | Coordenada X en el canvas. |
 | `position_y` | NUMERIC | NO | Coordenada Y en el canvas. |
+| `width` | NUMERIC | SÍ | Override manual del ancho del nodo (UI). Si es `NULL`, el nodo se autoajusta. |
+| `height` | NUMERIC | SÍ | Override manual del alto del nodo (UI). Si es `NULL`, el nodo se autoajusta. |
 | `config` | JSONB | NO | Configuración específica del tipo de nodo (ver §6.7). |
 | `created_at` | TIMESTAMP | NO | Auditoría. |
 | `updated_at` | TIMESTAMP | NO | Auditoría. |
@@ -567,9 +570,13 @@ Representa un workflow. Su `parent` es siempre `root_project`. Los **nodos viven
   "from_node_id":   "uuid    — id_node origen",
   "to_node_id":     "uuid    — id_node destino",
   "condition":      "string  — Expresión booleana sobre el contexto, opcional",
-  "label":          "string  — Etiqueta visible sobre la flecha, opcional"
+  "label":          "string  — Etiqueta visible sobre la flecha, opcional",
+  "source_side":    "enum    — 'top' | 'right' | 'bottom' | 'left' — lado del nodo origen del que sale la arista (UI), opcional",
+  "target_side":    "enum    — 'top' | 'right' | 'bottom' | 'left' — lado del nodo destino al que entra la arista (UI), opcional"
 }
 ```
+
+> Los campos `source_side` y `target_side` son metadatos puramente visuales utilizados por el designer para preservar la disposición exacta de las aristas. Si están ausentes, el front-end los infiere a partir de las posiciones relativas de los nodos. El motor de ejecución los ignora.
 
 ### Ejemplo
 
