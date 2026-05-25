@@ -152,7 +152,7 @@ src/features/processes/
 - **PD-04:** El estado del canvas (`nodes: Node[]`, `edges: Edge[]`, `selectedNodeId`, `selectedEdgeId`, `viewport`) vive en `canvasState.ts` y se gestiona con **`useNodesState` + `useEdgesState`** de React Flow, expuestos mediante un contexto local del diseñador (`DesignerContext`). No se introduce Zustand ni Redux. El alcance es local al editor.
 - **PD-05:** Todo cambio en el canvas (mover, conectar, crear, eliminar) produce una nueva versión del estado vía los setters de React Flow. El estado nunca se muta in-place.
 - **PD-06:** El estado se **persiste localmente** (sin localStorage) durante la sesión de edición. Solo al pulsar "Guardar" se traduce a un batch y se envía a `POST /api/persist` (ver §10).
-- **PD-07:** El `viewport` (`zoom`, `x`, `y`) se persiste en `localStorage` con clave `process-{id}-viewport` (heredado de FE-122). Restaurado al reabrir el editor.
+- **PD-07:** El `viewport` (`zoom`, `pan_x`, `pan_y`) se persiste en `process_definition.content.metadata_canvas` al guardar (ver PD-103). Esto reemplaza el esquema previo basado en `localStorage` (FE-122 v1.0). El viewport queda asociado al proceso, no a la sesión del navegador.
 
 ---
 
@@ -165,28 +165,21 @@ Este capítulo materializa el UX Spec §7.2 con requisitos implementables. El la
 │ ☰  ← Cliente / Proyecto / Procesos / [Nombre]  ⚠Sin guardar  Validar │
 ├──────────────────────────────────────────────────────────────────────┤
 │ ● Configurado  ● Advertencia  ● Error  ● Sin configurar              │
-├──────────┬───────────────────────────────────────────┬───────────────┤
-│          │                                           │               │
-│  PALETA  │   ┌──────────┐                            │ PROPIEDADES   │
-│          │   │ Toolbar  │                            │               │
-│  • Ini   │   └──────────┘                            │  [contenido   │
-│  • UTask │                                           │   según nodo  │
-│  • STask │           CANVAS                          │   o trans.    │
-│  • Gtwy  │      (dotted background)                  │   seleccion.] │
-│  • Fin   │                                           │               │
-│          │                                           │               │
-│          │   ┌──────────┐                            │               │
-│          │   │ Minimap  │                            │               │
-│          │   └──────────┘                            │               │
-└──────────┴───────────────────────────────────────────┴───────────────┘
+├───────────────────────────────────────────────────────┬──────────────┤
+│   ┌──────────┐                                        │ PROPIEDADES  │
+│   │ Toolbar  │                                        │              │
+│   └──────────┘                                        │  [contenido  │
+│                                                       │   según nodo │
+│              CANVAS                                   │   o trans.   │
+│         (dotted background)                           │   seleccion] │
+│                                                       │              │
+│   ┌──────────┐                                        │              │
+│   │ Minimap  │  (toggleable, PD-111)                  │              │
+│   └──────────┘                                        │              │
+└───────────────────────────────────────────────────────┴──────────────┘
 ```
 
-Diferencia respecto al UX Spec: el UX Spec §7.4 dice "no hay paleta fija visible". Este SRS **reintroduce una paleta lateral** además del "+" contextual, por dos razones:
-
-1. Atender el patrón de drag-and-drop que muchos usuarios esperan de herramientas tipo BPMN.
-2. Cumplir el requisito del usuario (punto 4 del feedback original) de que el comportamiento drag-and-drop esté disponible.
-
-El "+" contextual del UX Spec §7.4 sigue siendo el **camino principal** y recomendado. La paleta lateral es complementaria y se puede colapsar.
+**Nota — v1.0 final:** La iteración inicial de este SRS incluía una paleta lateral izquierda complementaria al patrón "+" contextual del UX Spec §7.4. Durante la implementación se decidió **eliminar la paleta** del layout y dejar el flujo 100% contextual (CTA central en canvas vacío + botón "+" por nodo). El cambio se alinea con el UX Spec §7.4 ("No hay paleta fija visible"). Las reglas PD-20 a PD-37 (paleta y drag-and-drop al canvas) quedan archivadas como **obsoletas** en este documento; su posible reintroducción está registrada como pendiente P-008.
 
 ## 3.1 Anchos y alturas
 
@@ -194,34 +187,33 @@ El "+" contextual del UX Spec §7.4 sigue siendo el **camino principal** y recom
 | --- | --- | --- |
 | Header con breadcrumb | 56px alto | Heredado del Frontend SRS / UX Spec. |
 | Leyenda de estados | 36px alto | UX Spec §7.3.4. |
-| Paleta | 220px ancho | Colapsable a slim rail 32px. |
-| Canvas | flex: 1 | Ocupa todo el espacio restante. |
+| Canvas | flex: 1 | Ocupa todo el ancho restante (no hay paleta lateral — ver nota al inicio de §3). |
 | Propiedades | 320px ancho | UX Spec §7.2 dice 280px; se eleva a 320px para acomodar formularios de configuración de `human_task`. Colapsable a slim rail 32px. |
 
-- **PD-10:** La paleta y el panel de propiedades son **colapsables independientemente**. El estado expandido/colapsado se persiste por usuario en `localStorage` (claves `designer-palette-collapsed` y `designer-properties-collapsed`).
-- **PD-11:** Si ambas se colapsan, el canvas se expande al ancho completo. Esta es la configuración recomendada para revisión visual de procesos grandes.
+- **PD-10:** ~~La paleta y el panel de propiedades son **colapsables independientemente**.~~ **(Obsoleta — la paleta fue eliminada.)** Solo el panel de propiedades es colapsable; el estado expandido/colapsado se persiste por usuario en `localStorage` (clave `designer-properties-collapsed`).
+- **PD-11:** ~~Si ambas se colapsan, el canvas se expande al ancho completo.~~ **(Obsoleta — ya no aplica.)** El canvas siempre ocupa el ancho completo menos el panel de propiedades si está expandido.
 
 ## 3.2 Header y acciones
 
 - **PD-12:** El header del editor incluye, de izquierda a derecha: icono hamburguesa (abre sidebar de módulos), breadcrumb, nombre del proceso editable inline (click → input), chip "Sin guardar" cuando hay cambios pendientes, y botones de acción.
-- **PD-13:** Los botones de acción son: **Validar** (secondary), **Iniciar** (secondary, solo si `status='configured'`) y **Guardar** (primary). El nombre del status se muestra como chip a la izquierda del primer botón ("Borrador" o "Configurado").
+- **PD-13:** Los botones de acción son, de izquierda a derecha: **Toggle Minimapa** (icono `Map`, ghost/secondary según estado, ver PD-112), **Validar** (secondary), **Iniciar** (secondary, solo si `status='configured'`) y **Guardar** (primary). El nombre del status se muestra como chip a la izquierda del primer botón ("Borrador" o "Configurado").
 - **PD-14:** El botón "Guardar" está deshabilitado si no hay cambios pendientes. Hover sobre él muestra tooltip "Sin cambios para guardar".
 - **PD-15:** El intento de cerrar la pestaña o navegar a otra ruta con cambios sin guardar dispara un `beforeunload` que pide confirmación al usuario.
 
 ---
 
-# 4. Paleta de nodos
+# 4. Paleta de nodos — (Obsoleto en v1.0 final)
 
-Este capítulo resuelve los puntos 4 y 5 del feedback original (paleta sin diseño visual, no soporta drag-and-drop real).
+> **⚠ Sección obsoleta.** La paleta lateral descrita en este capítulo (PD-20 a PD-37) fue eliminada del layout. El flujo de creación de nodos es 100% contextual: CTA central en canvas vacío (PD-50 ss.) y botón "+" por nodo (PD-40 ss.). El contenido de este capítulo se conserva como referencia histórica y para una eventual reintroducción documentada en el pendiente P-006.
 
-## 4.1 Layout de la paleta
+## 4.1 Layout de la paleta — (Obsoleto)
 
 - **PD-20:** La paleta es un panel lateral izquierdo con título "AGREGAR NODO" en label uppercase 10px (token `label` del UX Spec §3.2). Debajo, una lista vertical de cards, una por cada tipo de nodo del catálogo.
 - **PD-21:** Hay exactamente 5 cards en la paleta v1.0, en este orden: `start` (Inicio), `human_task` (Tarea de usuario), `script_task` (Tarea de sistema), `exclusive_gateway` (Decisión), `end` (Fin).
 - **PD-22:** La card del nodo `start` está deshabilitada visualmente (opacidad 50%, cursor `not-allowed`) cuando el proceso ya tiene un nodo `start`. Tooltip explica: "Ya existe un nodo Inicio. Solo se permite uno por proceso." (VR-25).
 - **PD-23:** Las cards de `script_task` y `exclusive_gateway` muestran un mini-badge ⚠ "MVP" en la esquina superior derecha. Tooltip: "Este tipo no se ejecuta en el motor MVP, pero puedes diseñarlo." (consistente con FE-104).
 
-## 4.2 Diseño visual de cada PaletteCard
+## 4.2 Diseño visual de cada PaletteCard — (Obsoleto)
 
 Resuelve el punto 5 del feedback original (cuadros grises sin diseño).
 
@@ -238,9 +230,7 @@ Resuelve el punto 5 del feedback original (cuadros grises sin diseño).
 - **PD-26:** Hover state de la card: borde de 1px del color de tipo aparece, cursor cambia a `grab`. Active (mientras se arrastra): cursor `grabbing`, opacity 0.7.
 - **PD-27:** La PaletteCard expone `aria-label="Arrastrar al canvas para crear un nodo de tipo X"` para accesibilidad.
 
-## 4.3 Drag and drop al canvas
-
-Resuelve el punto 4 del feedback original.
+## 4.3 Drag and drop al canvas — (Obsoleto)
 
 - **PD-30:** Cada PaletteCard es draggable nativo HTML (`draggable="true"`). En `onDragStart` setea `dataTransfer` con `type` igual a `application/reactflow` y `data` igual al `nodeType` (`start`, `human_task`, etc.).
 - **PD-31:** El componente `CanvasShell` registra `onDragOver` (con `preventDefault()`) y `onDrop` sobre el div contenedor de `<ReactFlow>`. En `onDrop`, lee `dataTransfer`, llama a `reactFlowInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY })` para obtener las coordenadas en el sistema del canvas, y agrega el nodo nuevo al estado.
@@ -253,9 +243,7 @@ Resuelve el punto 4 del feedback original.
 - **PD-33:** El nuevo nodo creado por drop queda **seleccionado** automáticamente (`selectedNodeId` se actualiza), abriendo el panel de propiedades a la derecha.
 - **PD-34:** Si el usuario suelta sobre un nodo ya existente, el drop se cancela (el nodo nuevo no se crea). Feedback visual: durante el `dragOver` sobre un nodo, el nodo destino muestra un borde rojo dashed indicando "no se puede soltar aquí".
 
-## 4.4 Click como alternativa
-
-El feedback original menciona que la implementación actual usa click. Aunque este no es el patrón intuitivo, se mantiene como **fallback de accesibilidad** y para teclado:
+## 4.4 Click como alternativa — (Obsoleto)
 
 - **PD-35:** Click sobre una PaletteCard (sin drag) crea el nodo en el centro del viewport actual. Si ya hay un nodo en esa posición, se desplaza 40px abajo-derecha hasta encontrar espacio libre.
 - **PD-36:** Doble click sobre una PaletteCard tiene el mismo efecto que un click simple (no se distinguen).
@@ -269,38 +257,38 @@ Este capítulo materializa el UX Spec §7.4 (la pieza más importante para resol
 
 ## 5.1 Comportamiento general
 
-- **PD-40:** Al hacer hover sobre cualquier nodo del canvas (excepto `end`), aparece un botón circular azul "+" pegado al lado derecho del nodo, parcialmente solapado (centro del botón a la derecha del borde del nodo, no del centro del nodo).
-- **PD-41:** El botón "+" tiene 24px de diámetro, fondo `action-primary` (`#2563EB`), texto blanco, icono `plus` de Lucide a 16px. Hover sobre el botón: fondo `action-primary-hover` (`#1D4ED8`), elevación con shadow sutil.
-- **PD-42:** El botón "+" no aparece sobre nodos `end` (un `end` no tiene salida — VR-28).
-- **PD-43:** El botón "+" se renderiza dentro del propio custom node con CSS `:hover` puro (no requiere lógica de React adicional). Esto garantiza que el botón aparece tan pronto como el cursor entra al área del nodo y desaparece tan pronto como sale, sin lag.
-- **PD-44:** Cuando el botón "+" está renderizado, el evento `onMouseEnter` del botón **mantiene** la visibilidad incluso si el cursor sale del área del nodo (transición suave del cursor al botón sin que desaparezca). Implementación: el área hover del botón se extiende 8px alrededor para crear una zona de tolerancia.
+- **PD-40:** Al hacer hover sobre cualquier nodo del canvas (excepto `end`), aparecen **cuatro botones circulares "+"**, uno por lado (top, right, bottom, left), pegados al borde correspondiente del nodo y centrados en cada lado. La dirección elegida al hacer click determina dónde se posiciona el nuevo nodo (PD-48).
+- **PD-41:** Cada botón "+" tiene 24px de diámetro, fondo `action-primary` (`#2563EB`), texto blanco, icono `plus` de Lucide a 16px. Hover sobre un botón: fondo `action-primary-hover` (`#1D4ED8`), elevación con shadow sutil.
+- **PD-42:** Los botones "+" no aparecen sobre nodos `end` (un `end` no tiene salida — VR-28). Adicionalmente, **el botón "+" de un lado específico se oculta cuando ese lado ya tiene una edge saliente** (estado `occupiedSides`), evitando duplicar salidas por el mismo lado.
+- **PD-43:** Los botones "+" se renderizan dentro del propio custom node con CSS `:hover` puro (`group/node` + `group-hover/node:opacity-100`). Esto garantiza que aparecen tan pronto como el cursor entra al área del nodo y desaparecen tan pronto como sale, sin lag.
+- **PD-44:** Los botones "+" se **ocultan globalmente durante un drag de edge** (creación de conexión o re-anclaje de endpoint, PD-88), para no obstruir el drop sobre handles del mismo nodo.
 
 ## 5.2 Click sobre el "+"
 
 - **PD-45:** Click sobre el botón "+" abre un **popover** con la lista de tipos de nodo disponibles para encadenar.
 - **PD-46:** El popover muestra los mismos 5 tipos de la paleta, en el mismo orden, con el mismo diseño visual de PaletteCard (icono coloreado + etiqueta). El tipo `start` está deshabilitado si ya existe uno en el proceso (consistente con PD-22).
-- **PD-47:** El popover se posiciona a la derecha del botón "+", offset 8px. Si no hay espacio (cerca del borde derecho del viewport), se reposiciona automáticamente (Popper.js o equivalente). Z-index garantiza que aparece sobre el resto del canvas pero debajo de los modales del editor.
+- **PD-47:** El popover se posiciona adyacente al botón "+" disparador, en el lado opuesto al nodo (top → arriba, right → derecha, etc.), offset 8px. Tiene `max-height: 280px` con scroll vertical interno cuando los tipos disponibles excedan el alto visible. Z-index garantiza que aparece sobre el resto del canvas pero debajo de los modales del editor.
 - **PD-48:** Click sobre uno de los tipos en el popover:
   1. Cierra el popover.
   2. Crea un nuevo nodo del tipo seleccionado.
-  3. Posiciona el nuevo nodo **a la derecha del nodo origen, alineado en el mismo Y**, a 200px de distancia (medido entre centros). Si esa posición ya está ocupada por otro nodo, se desplaza 40px hacia abajo iterativamente hasta encontrar espacio libre.
+  3. Posiciona el nuevo nodo en la dirección del botón "+" usado (top/right/bottom/left), a **180px** del nodo origen (medido entre centros). Si esa posición ya está ocupada por otro nodo, se desplaza 40px en perpendicular hasta encontrar espacio libre.
   4. Snap-aligna la posición al grid de 20px.
-  5. Crea una **transición** del nodo origen al nuevo nodo, con label vacío y sin condición.
+  5. Crea una **transición** del nodo origen al nuevo nodo, con `source_side` igual a la dirección elegida y `target_side` igual a la dirección opuesta (PD-76), label vacío y sin condición.
   6. Selecciona el nuevo nodo, abriendo el panel de propiedades.
-- **PD-49:** Esc o click fuera del popover cierran el popover sin crear nada.
+- **PD-49:** Esc o click fuera del popover cierran el popover sin crear nada. El popover también se cierra automáticamente al iniciar un drag de edge (PD-88).
 
 ## 5.3 "+" en canvas vacío
 
 - **PD-50:** Cuando el canvas no tiene ningún nodo, aparece un botón "+" grande (64px de diámetro) centrado vertical y horizontalmente en el viewport, con el texto debajo "Comienza añadiendo el nodo de Inicio" en `text-tertiary` 13px.
-- **PD-51:** Click sobre el botón grande despliega el popover con los 5 tipos. La opción "Inicio" aparece **destacada** (borde `action-primary` 1px, badge "Recomendado" en azul).
-- **PD-52:** Si el usuario elige cualquier tipo distinto de "Inicio" desde el botón grande, se crea ese tipo y aparece un toast informativo: "Recuerda que cada proceso necesita exactamente un nodo Inicio." (VR-25).
+- **PD-51:** Click sobre el botón grande **crea directamente un nodo `start`** sin abrir popover (atajo para el caso más común). El usuario puede seguir construyendo el flujo desde los botones "+" contextuales del nodo `start` recién creado.
+- **PD-52:** Si se requiere crear un nodo distinto de `start` en un canvas vacío, el usuario puede hacerlo desde el botón "+" del propio `start` después de crearlo (escenario raro; el flujo normal siempre empieza por Inicio).
 
 ## 5.4 "+" en `exclusive_gateway` con múltiples salidas (diferido a v1.1)
 
 El UX Spec §7.4.2 menciona un comportamiento de múltiples "+" alrededor del gateway, uno por cada salida no conectada. Este comportamiento es valioso pero su diseño detallado (cuántas salidas, dónde se posicionan, cómo se etiquetan las ramas) se difiere:
 
 - **PD-53:** En v1.0 de este SRS, el botón "+" sobre un `exclusive_gateway` se comporta igual que sobre cualquier otro nodo: crea un único nodo a la derecha con una transición. El usuario puede agregar transiciones adicionales manualmente con el handle drag (§7).
-- **PD-54:** Se registra como pendiente **P-003** en `pendientes.md`: implementación del "+" multi-salida para gateways. Bloqueador: requiere extensión del catálogo de `node_type` para registrar metadatos de salidas nominadas, o convención de etiquetado de ramas. Documentación afectada: este SRS, UX Spec §7.4.2.
+- **PD-54:** Se registra como pendiente **P-005** en `pendientes.md`: implementación del "+" multi-salida para gateways. Bloqueador: requiere extensión del catálogo de `node_type` para registrar metadatos de salidas nominadas, o convención de etiquetado de ramas. Documentación afectada: este SRS, UX Spec §7.4.2.
 
 ---
 
@@ -310,7 +298,11 @@ Este capítulo resuelve el punto 3 del feedback original (transiciones muy curva
 
 ## 6.1 Tipo de edge: smoothstep
 
-- **PD-60:** Todas las transiciones se renderizan como edges de tipo **`smoothstep`** de React Flow, con `pathOptions.borderRadius = 8`. Esto produce edges ortogonales (segmentos horizontal/vertical) con esquinas redondeadas, similares a las de n8n, Make, Airflow.
+- **PD-60:** Las transiciones se renderizan en uno de dos tipos según la alineación de los nodos conectados:
+  - **`straight`** cuando los nodos están alineados horizontal o verticalmente (`|Δx| ≤ 10px` o `|Δy| ≤ 10px`). Línea recta sin segmentos.
+  - **`smoothstep`** en cualquier otro caso, con `pathOptions.borderRadius = 8`. Produce segmentos ortogonales con esquinas redondeadas.
+
+  La función `resolveEdgeType(srcPos, tgtPos)` ejecuta esta decisión y se recalcula al mover nodos.
 - **PD-61:** Las edges curvas tipo Bézier libres (default de React Flow) **quedan prohibidas** en v1.0. El argumento es que las curvas Bézier funcionan en grafos pequeños pero generan cruces y confusión visual en procesos reales con 10+ nodos.
 - **PD-62:** El color de la edge en estado normal es `border-default` (`#2A2E3F` en dark, `#D1D5DB` en light) con `stroke-width: 1.5`. La cabeza de flecha es del mismo color, tamaño estándar de React Flow.
 - **PD-63:** Hover sobre una edge eleva su `stroke-width` a 2.5 y oscurece su color a `text-tertiary`. Click la selecciona (panel de propiedades de transición).
@@ -328,12 +320,15 @@ Resuelve la queja específica del usuario sobre que el nodo `end` solo tiene un 
 
 - **PD-70:** Cada custom node tiene handles en las 4 direcciones (`Position.Top`, `Position.Right`, `Position.Bottom`, `Position.Left`).
 - **PD-71:** Los handles son **invisibles por defecto** y aparecen como un círculo pequeño (8px de diámetro, color `action-primary`) solo cuando el nodo está en hover o seleccionado. Esto preserva el aspecto limpio del canvas.
-- **PD-72:** El tipo de cada handle (`source` vs `target`) depende del tipo de nodo:
-  - **`start`**: 4 handles, todos `source`. No acepta entradas (VR-28).
-  - **`end`**: 4 handles, todos `target`. No produce salidas (VR-28).
-  - **`human_task`, `script_task`, `exclusive_gateway`**: 4 handles, **cada uno funciona como ambos `source` y `target`** simultáneamente. React Flow no soporta nativamente "handle bidireccional"; se implementa colocando dos handles superpuestos por dirección (`type: 'source'` con `id: 'top-source'`, `type: 'target'` con `id: 'top-target'`), con el mismo offset.
+- **PD-72:** El tipo de cada handle (`source` vs `target`) depende del tipo de nodo. **Se usa un único handle por lado**, no handles superpuestos; el comportamiento bidireccional se logra con `connectionMode={ConnectionMode.Loose}` en `<ReactFlow>` (PD-75):
+  - **`start`**: 4 handles `source`, IDs `top`, `right`, `bottom`, `left`. No acepta entradas (VR-28).
+  - **`end`**: 4 handles `target`, IDs `top`, `right`, `bottom`, `left`. No produce salidas (VR-28).
+  - **`human_task`, `script_task`, `exclusive_gateway`**: 4 handles declarados como `source`, IDs `top`, `right`, `bottom`, `left`. Bajo `ConnectionMode.Loose`, React Flow permite que estos handles también reciban conexiones (actúan como bidireccionales sin superposición visual).
 - **PD-73:** La conexión se resuelve así: cuando el usuario arrastra desde un handle de un nodo y suelta sobre otro nodo, React Flow elige automáticamente el handle más cercano del target. La transición resultante apunta a ese handle.
 - **PD-74:** Las posiciones de los handles permiten que las edges entren y salgan de los nodos por cualquiera de los cuatro lados, eliminando la restricción de "solo lado izquierdo" o "solo lado derecho" que tiene la implementación actual.
+- **PD-75:** `<ReactFlow>` se configura con `connectionMode={ConnectionMode.Loose}`. Esto habilita el patrón bidireccional descrito en PD-72 (un solo handle `source` por lado puede recibir conexiones), evitando la superposición de dos handles en el mismo punto que rompía el drag manual de conexiones.
+- **PD-76:** Cada transición persiste el lado exacto de salida y entrada en los campos `Transition.source_side` y `Transition.target_side` (`'top' | 'right' | 'bottom' | 'left'`, ver Metadata v1.1 §6.6). Estos campos son opcionales: si están ausentes, el front-end los infiere a partir de la posición relativa de los nodos. El motor de ejecución los ignora.
+- **PD-77:** El frontend implementa `assignHandlesWithoutCollision(sourceId, edges, positions)`: cuando un nodo tiene múltiples salidas, asigna a cada edge el lado de salida que mejor se alinee con la dirección al destino sin colisiones (cada lado libre se reserva para una sola edge cuando hay menos de 4 salidas). Esta función se ejecuta al mover un nodo (PD-93) y al crear conexiones nuevas, y se aplica únicamente a edges no marcadas como manuales (PD-86).
 
 ## 6.4 Conexión arrastrando
 
@@ -347,13 +342,19 @@ Resuelve la queja específica del usuario sobre que el nodo `end` solo tiene un 
   - No se permite `end` como source.
   - No se permite source == target (self-loop).
   - No se permite duplicar una transición ya existente entre los mismos dos nodos (mismo `from_node_id` y `to_node_id`).
+- **PD-86:** Una edge ya creada permite re-arrastrar cualquiera de sus dos extremos (source o target) hacia otro handle del mismo o de otro nodo. Esto se habilita con la prop `edgesUpdatable` de `<ReactFlow>` y el callback `onEdgeUpdate(oldEdge, newConnection)`. Cuando el usuario suelta el extremo sobre un handle válido, la edge se actualiza con los nuevos `source_side`/`target_side` y queda marcada como manual (PD-87).
+- **PD-87:** Las edges modificadas manualmente (via PD-86) se marcan con `data.manualHandles = true`. Esta marca instruye al recálculo automático de handles (PD-77, PD-93) a **respetar la asignación elegida por el usuario**, evitando sobrescribirla cuando se mueve el nodo asociado. La marca no se persiste en `Transition` — vive solo en el estado del canvas; en la siguiente sesión, los valores `source_side`/`target_side` ya persistidos cumplen el mismo rol.
+- **PD-88:** Durante un drag de conexión (nuevo, `onConnectStart` → `onConnectEnd`) o de re-anclaje de extremo (`onEdgeUpdateStart` → `onEdgeUpdateEnd`), el diseñador propaga un flag `isDraggingEdge=true` que: (1) oculta los botones "+" contextuales de todos los nodos (PD-45 ss.), (2) revela visualmente todos los handles del canvas como drop targets, vía la clase CSS global `body.rf-dragging-edge`.
 
 ## 6.5 Selección, mover, eliminar
 
 - **PD-90:** Click sobre un nodo lo selecciona (UX Spec §7.3.2). Borde dashed `action-primary` 1.5px offset 4px. El panel de propiedades carga las props del nodo.
 - **PD-91:** Click sobre una edge la selecciona. Estilo: §6.1 PD-64. El panel de propiedades carga las props de la transición.
 - **PD-92:** Click sobre el canvas vacío deselecciona todo. El panel de propiedades vuelve a mostrar las props del proceso completo (nombre, descripción, variables de contexto, status).
-- **PD-93:** Drag sobre un nodo lo mueve. Snap a grid de 20px. Las edges se reenrutan automáticamente (smoothstep recalcula su path).
+- **PD-93:** Drag sobre un nodo lo mueve. Snap a grid de 20px. Al finalizar el movimiento (cuando RF emite el cambio `position` con `dragging: false`):
+  1. Las edges se reenrutan automáticamente: `resolveEdgeType` decide entre `straight` y `smoothstep` (PD-60).
+  2. Para cada nodo cuya posición cambió, `assignHandlesWithoutCollision` (PD-77) reasigna `source_side`/`target_side` de las edges salientes **no marcadas como manuales** (PD-87), eligiendo el lado más alineado con cada destino sin colisionar consigo mismo.
+  3. Los `occupiedSides` (lados con edge saliente) de los nodos afectados se recalculan; los botones "+" contextuales (PD-43 ss.) del lado correspondiente desaparecen u reaparecen según corresponda.
 - **PD-94:** Tecla `Delete` o `Backspace` con un nodo seleccionado elimina el nodo y todas sus transiciones entrantes/salientes. Confirmación previa: modal con texto "¿Eliminar este nodo? Se borrarán también sus N transiciones." con botones "Cancelar" y "Eliminar" (red primary).
 - **PD-95:** Tecla `Delete` con una edge seleccionada elimina la transición sin confirmación (operación de bajo riesgo).
 - **PD-96:** Multi-select: shift+click añade a la selección. Rubber band (drag sobre canvas vacío) selecciona todos los nodos dentro del rectángulo. `Delete` con multi-selección pide una sola confirmación que agrega los counts.
@@ -361,14 +362,15 @@ Resuelve la queja específica del usuario sobre que el nodo `end` solo tiene un 
 ## 6.6 Pan y zoom
 
 - **PD-100:** Pan: drag con click izquierdo sobre el canvas vacío. Pan: drag con la rueda del mouse presionada también funciona (estándar).
-- **PD-101:** Zoom: scroll del mouse con cmd/ctrl, o pinch en trackpad. Rango 25%-200%. Sin cmd/ctrl, scroll hace pan vertical (consistente con sensación de "mapa").
+- **PD-101:** Zoom: scroll del mouse con cmd/ctrl, o pinch en trackpad. Rango **20%–200%** (`minZoom=0.2`, `maxZoom=2`). Sin cmd/ctrl, scroll hace pan vertical (consistente con sensación de "mapa").
 - **PD-102:** El zoom centrado se aplica respecto a la posición del cursor (estándar de React Flow con `zoomOnScroll` configurado correctamente).
-- **PD-103:** El `viewport` se persiste en `localStorage` (heredado FE-122).
+- **PD-103:** El `viewport` (`zoom`, `pan_x`, `pan_y`) se persiste en `process_definition.content.metadata_canvas` al hacer **Guardar**. Al abrir el proceso, el viewport guardado se restaura vía `rfInstance.setViewport()`. Si no hay viewport guardado (proceso nuevo o `metadata_canvas` con valores por defecto `{zoom:1, pan_x:0, pan_y:0}`), se aplica `fitView` con `maxZoom: 1` y `padding: 0.2`. Esto reemplaza el esquema previo de localStorage (FE-122 v1.0); ver FE-122 v1.1.
 
 ## 6.7 Background y minimap
 
 - **PD-110:** El background del canvas usa el componente `<Background variant="dots" />` de React Flow, con `gap={22}` y `color="#1F2230"` en dark mode (`color="#E5E7EB"` en light). Esto produce el patrón de puntos sutiles mencionado en UX Spec §7.2.
 - **PD-111:** El minimap usa `<MiniMap />` posicionado abajo-izquierda, 150×90px. Cada nodo se renderiza con el color de su estado (verde/ámbar/rojo/gris). El viewport actual aparece como rectángulo `action-primary` dashed. Click en el minimap pan al punto correspondiente.
+- **PD-112:** El minimap es **toggleable** desde un botón con icono `Map` en el toolbar del header (ver PD-13). El estado (visible/oculto) se persiste en `localStorage` con clave `wf:minimap`. Por defecto está visible.
 
 ---
 
@@ -435,9 +437,12 @@ El panel derecho muestra propiedades editables del item seleccionado. Se hereda 
 ## 8.1 Cuando hay un nodo seleccionado
 
 - **PD-180:** Header del panel: label uppercase "PROPIEDADES" + botón "✕" para cerrar/colapsar. Debajo, el bloque identificador del nodo (icono coloreado + nombre + identificador técnico en monospace).
-- **PD-181:** Campos comunes a todos los nodos:
-  - **Nombre técnico** (input monospace, validado contra VR-40 con feedback inmediato en blur).
-  - **Etiqueta visible** (input texto libre).
+- **PD-181:** Campos comunes a todos los nodos, en este orden:
+  - **Nombre visible** (`display_name` en Metadata v1.1 §6.7; input texto libre, sin restricción VR-40). Es la etiqueta renderizada en el card del nodo en el canvas. Si está vacío, el canvas hace fallback a `name.replace(/_/g, ' ')`.
+  - **Nombre técnico** (`name`; input monospace, validado contra VR-40 con feedback inmediato en blur).
+  - **Descripción** (input texto libre).
+- **PD-181.1 (Auto-derivación de slug):** Al editar el **Nombre visible**, el **Nombre técnico** se autogenera con un slug compatible con VR-40 (NFD + remove diacritics + lowercase + reemplazar no-alfanumérico por `_` + truncar 63 chars). La auto-derivación está activa **mientras** el nombre técnico esté sincronizado con el slug actual del nombre visible o sea uno de los defaults (`tarea_humana`, `script`, `decision`, `inicio`, `fin`). En cuanto el usuario edita manualmente el nombre técnico, la auto-derivación se desactiva para ese nodo: ediciones posteriores del nombre visible ya no tocan el técnico. No hay flag persistido para este estado — la heurística se evalúa en cada cambio.
+- **PD-181.2 (Defaults al crear):** Al crear un nodo nuevo (vía botón "+" o CTA central), se asignan defaults amigables: `display_name` = "Inicio" / "Fin" / "Tarea humana" / "Script" / "Decisión" según el tipo, y `name` = slug correspondiente (`inicio`, `fin`, `tarea_humana`, `script`, `decision`). Si un nodo con ese `name` ya existe en el proceso, se sufija con `_2`, `_3`, etc., para preservar la unicidad requerida por la BD.
 - **PD-182:** Campos específicos por tipo:
   - **`start`**: ninguno adicional.
   - **`end`**: `result_label` (input texto, p. ej. "Aprobado", "Rechazado").
@@ -657,7 +662,7 @@ Heredados parcialmente del UX Spec §14.2 y del Frontend SRS:
 Decisiones explícitamente diferidas para mantener el alcance del MVP:
 
 - **Undo/redo del canvas.** Mismo argumento del UX Spec §15. Si el usuario se equivoca, deshace manualmente.
-- **"+" multi-salida en exclusive_gateway** con etiquetado de ramas. Diferido (P-003).
+- **"+" multi-salida en exclusive_gateway** con etiquetado de ramas. Diferido (P-005).
 - **Auto-layout** con dagre/elkjs. El botón "Auto-layout" del UX Spec §7.3.1 se renderiza pero deshabilitado, con tooltip "Próximamente". Sin esto el usuario organiza manualmente.
 - **Validación cliente del proceso completo** (VR-25..VR-30) **en sentido motor** (paths alcanzables, ciclos, etc.). El cliente solo valida lo declarado en §9.1. El backend hace la validación completa al recibir el batch.
 - **Versionado y diff visual** de procesos.
@@ -680,21 +685,32 @@ La emisión de este SRS implica los siguientes ajustes en documentos existentes.
 - **§20 (Out of scope)** — Sin cambios.
 - **§21 (Historial)** — Agregar entrada v1.1 que explique la extracción del diseñador a documento dedicado.
 
-## 15.2 UX Spec v1.0 → sin cambios
+## 15.2 UX Spec v1.0 — ajustes menores
 
-El UX Spec v1.0 §7.4 ya definía correctamente el comportamiento del botón "+" contextual. Este SRS lo implementa fielmente. No hay contradicciones ni adiciones que requieran modificar el UX Spec.
+El UX Spec v1.0 §7.4 ya definía correctamente la **ausencia de paleta fija** y el botón "+" contextual. La iteración final agrega dos precisiones que el UX Spec debe reflejar:
 
-## 15.3 Pendientes v1.1 → v1.2
+- **§7.4.1** — El "+" ya no es un único botón en el borde derecho: son **cuatro botones**, uno por lado libre del nodo (top/right/bottom/left). El botón del lado que ya tiene una edge saliente se oculta.
+- **§7.4.3** — El "+" del canvas vacío crea **directamente** un nodo `start` (atajo), no abre popover.
 
-Agregar tres entradas nuevas:
+## 15.3 Pendientes v1.2 → v1.3
 
-- **P-003** — "+" multi-salida para `exclusive_gateway` con etiquetado de ramas. Bloqueador: extensión del catálogo de `node_type` o convención de etiquetado. Documentación afectada: este SRS §5.4, UX Spec §7.4.2.
-- **P-004** — Migración a React Flow 12 (`@xyflow/react`). Razón del diferimiento: la serie 12 introduce cambios de API y aún no hay urgencia. Beneficio esperado: mejor performance, API más limpia. Documentación afectada: este SRS §2.1, §2.2.
-- **P-005** — Auto-layout con dagre/elkjs. Bloqueador: ninguno técnico. Diferido por scope. Documentación afectada: este SRS §14, UX Spec §7.3.1.
+Agregar cinco entradas nuevas (los IDs continúan desde P-005, ya que P-001..P-004 existen en `pendientes.md`):
 
-## 15.4 Definición de Metadata, Modelo de Datos Físico, SRS Backend, Vision — sin cambios
+- **P-005** — "+" multi-salida para `exclusive_gateway` con etiquetado de ramas. Bloqueador: extensión del catálogo de `node_type` o convención de etiquetado. Documentación afectada: este SRS §5.4, UX Spec §7.4.2.
+- **P-006** — Migración a React Flow 12 (`@xyflow/react`). Razón del diferimiento: la serie 12 introduce cambios de API y aún no hay urgencia. Beneficio esperado: mejor performance, API más limpia. Documentación afectada: este SRS §2.1, §2.2.
+- **P-007** — Auto-layout con dagre/elkjs. Bloqueador: ninguno técnico. Diferido por scope. Documentación afectada: este SRS §14, UX Spec §7.3.1.
+- **P-008** — Paleta lateral de nodos (reintroducción opcional). Eliminada en v1.0 final por preferencia del UX Spec §7.4 ("No hay paleta fija visible"). Las reglas PD-20 a PD-37 quedan archivadas en este documento como histórico para una eventual reactivación.
+- **P-009** — Resize manual de nodos (NodeResizer de RF11). Los campos `width`/`height` ya están declarados en Metadata v1.1 §6.7 pero la UI fue revertida durante implementación por regresiones en el drag de handles. Documentación afectada: este SRS §7 (forma de nodos), Metadata §6.7.
 
-Este SRS no toca el metamodelo, ni el esquema de BD, ni el contrato del backend, ni la visión del producto. Toda la mejora del diseñador es **frontend puro**.
+## 15.4 Definición de Metadata v1.1 — campos del contrato
+
+Este SRS implica los siguientes cambios al contrato JSON documentado en `Metadata_Definition_WorkflowPlatform_v1_1.md`:
+
+- **§6.6 Transition** — Añadir `source_side` y `target_side` (`'top' | 'right' | 'bottom' | 'left'`, opcionales, nullables) al sub-objeto. Metadatos visuales del designer; el motor los ignora.
+- **§6.7 Node** — Añadir `display_name` (string, opcional, nullable) al sub-objeto. Etiqueta legible mostrada en el canvas; si está ausente, el UI deriva la etiqueta de `name`.
+- **§6.7 Node** — Añadir `width` y `height` (numeric, opcionales, nullables) al sub-objeto. Reservados para la funcionalidad de resize diferida en P-007.
+
+El Modelo de Datos Físico, SRS Backend y Visión **no requieren cambios**: el backend acepta el JSON tal cual (los campos nuevos pasan transparentemente por `persist` y `read`), la BD ya tolera columnas adicionales en el JSONB de `process_definition.content` y en la tabla `nodes` los nuevos campos son NULL-able.
 
 ---
 

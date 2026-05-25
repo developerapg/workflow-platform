@@ -750,7 +750,7 @@ Cada tipo de nodo es un componente:
 
 - **FE-120:** El canvas mantiene undo/redo locales (mínimo 20 niveles). No se persiste el historial al guardar; al recargar la página, el historial se pierde.
 - **FE-121:** Auto-save deshabilitado en MVP. Solo persiste con click explícito en "Guardar".
-- **FE-122:** El zoom y pan del canvas se persiste localmente en `localStorage` por proceso (clave `process-{id}-viewport`) para que al reabrir el usuario vea el mismo encuadre.
+- **FE-122:** El zoom y pan del canvas se persiste en `process_definition.content.metadata_canvas` (`zoom`, `pan_x`, `pan_y`) al hacer **Guardar**. Al abrir el proceso, el viewport guardado se restaura. Esto reemplaza el esquema previo basado en `localStorage` con clave `process-{id}-viewport` (FE-122 v1.0): el viewport queda asociado al proceso y es portable entre dispositivos. Si no hay viewport guardado (proceso nuevo o `metadata_canvas` con valores por defecto), el editor aplica `fitView` con `maxZoom: 1` y `padding: 0.2`. Detalle del comportamiento en Process Designer SRS PD-07 / PD-103.
 
 ---
 

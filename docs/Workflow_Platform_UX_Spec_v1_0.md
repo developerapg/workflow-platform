@@ -567,7 +567,7 @@ No hay paleta fija visible. La paleta aparece bajo demanda en dos escenarios:
 
 ### 7.4.1 "+" sobre nodo (hover)
 
-Al pasar el mouse sobre un nodo, aparece un botón circular azul "+" en el **borde derecho del nodo** (centrado verticalmente), parcialmente solapado con el nodo. Click sobre el "+" → despliega un popover con los tipos de nodo disponibles:
+Al pasar el mouse sobre un nodo, aparecen **cuatro botones circulares azules "+"**, uno por lado del nodo (arriba, derecha, abajo, izquierda), cada uno centrado en el lado correspondiente y parcialmente solapado con el nodo. El botón del lado que ya tiene una transición saliente se oculta, evitando duplicar salidas por el mismo lado. Click sobre cualquier "+" → despliega un popover con los tipos de nodo disponibles:
 
 - Inicio (solo si no existe ya un Inicio en el proceso)
 - Tarea de usuario
@@ -575,7 +575,7 @@ Al pasar el mouse sobre un nodo, aparece un botón circular azul "+" en el **bor
 - Decisión
 - Fin
 
-Al seleccionar un tipo, el nuevo nodo se crea **a la derecha del nodo origen, alineado en el mismo Y**, y la conexión entre ambos se traza automáticamente. El nuevo nodo queda seleccionado y su panel de propiedades se abre.
+Al seleccionar un tipo, el nuevo nodo se crea **en la dirección del botón "+" elegido** (a 180px del nodo origen, medido entre centros), y la transición entre ambos se traza automáticamente saliendo por el lado correspondiente y entrando por el lado opuesto del nuevo nodo. El nuevo nodo queda seleccionado y su panel de propiedades se abre. Si los tipos disponibles exceden el alto visible del popover, el popover hace scroll vertical interno.
 
 ### 7.4.2 "+" sobre nodo con varias salidas
 
@@ -583,15 +583,17 @@ Si el nodo origen es una Decisión (con múltiples caminos de salida), el hover 
 
 ### 7.4.3 "+" en canvas vacío
 
-Cuando el canvas está vacío (proceso nuevo), aparece un "+" grande centrado con texto "Comienza añadiendo el nodo de Inicio". Click → menú con todos los tipos (en este caso, "Inicio" estará destacado como recomendado).
+Cuando el canvas está vacío (proceso nuevo), aparece un "+" grande centrado con texto "Comienza añadiendo el nodo de Inicio". Click → **crea directamente un nodo Inicio** (atajo para el caso más común). No abre popover. El usuario continúa el flujo desde los botones "+" contextuales del Inicio recién creado.
 
 ### 7.4.4 Conectar dos nodos existentes
 
 Para conectar manualmente dos nodos ya creados:
 
-- Hover sobre el borde derecho del nodo origen → aparece un pequeño **handle de conexión** (círculo pequeño).
-- Drag desde el handle hasta el nodo destino → crea la conexión.
-- Si el nodo destino no acepta la conexión (p. ej. ya tiene una entrada y solo acepta una), feedback visual: la línea se vuelve roja durante el drag y al soltar se cancela.
+- Hover sobre el nodo origen → aparecen **handles de conexión** pequeños en los cuatro lados del nodo (top/right/bottom/left).
+- Drag desde cualquier handle hasta el nodo destino → crea la conexión, eligiendo automáticamente el lado del destino más cercano al cursor.
+- Si el nodo destino no acepta la conexión (p. ej. un nodo Inicio como destino), feedback visual: la línea se vuelve roja durante el drag y al soltar se cancela.
+
+Las transiciones ya creadas son **editables**: al seleccionar una transición, sus dos extremos aparecen como handles arrastrables. El usuario puede tomar cualquier extremo y soltarlo en otro handle (del mismo o de otro nodo) para reasignar el lado por el que entra o sale. Esta asignación manual queda "fijada": cuando los nodos se muevan, esa transición conserva los lados elegidos por el usuario en lugar de recalcularlos automáticamente.
 
 ## 7.5 Tipos de nodo del MVP
 

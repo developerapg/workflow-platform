@@ -685,9 +685,12 @@ Representa un nodo del grafo de un proceso. Vive como fila en la tabla `nodes`, 
   "id_node": "n_capture-uuid",
   "process_id": "8c3b1d2e-...-...",
   "node_type": "human_task",
-  "name": "Capturar solicitud",
+  "name": "capturar_solicitud",
+  "display_name": "Capturar solicitud",
   "position_x": 220,
   "position_y": 140,
+  "width": null,
+  "height": null,
   "config": {
     "form_ref": "f1a2b3c4-...-..."
   }
